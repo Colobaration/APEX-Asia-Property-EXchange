@@ -7,9 +7,13 @@ class Settings(BaseSettings):
     amocrm_client_secret: str
     amocrm_redirect_uri: str
     amocrm_refresh_token: Optional[str] = None
+    amocrm_domain: Optional[str] = None  # например: your-company.amocrm.ru
     
     # База данных
     db_url: str = "postgresql://asia:asia@db:5432/asia_crm"
+    
+    # Frontend URL
+    frontend_url: str = "http://localhost:3000"
     
     # Безопасность
     secret_key: str = "your-secret-key-here"

@@ -13,9 +13,16 @@ export GH_TOKEN
 project_number=""
 
 projects_json=$(gh project list --owner "$GH_OWNER" --format json)
-# Support both shapes: array or {projects:[...]}
+# Support both shapes: array or {projects:[...]}. Be defensive about element shapes.
 project_number=$(echo "$projects_json" | jq -r --arg T "$GH_PROJECT_NAME" '
-  (.projects // .) | map(select(.title==$T)) | .[0].number // empty
+  (
+    if type=="array" then .
+    elif (.projects? | type)=="array" then .projects
+    else [] end
+  )
+  | map(select((.title // empty)==$T))
+  | (first // {})
+  | (.number // empty)
 ')
 
 if [ -z "$project_number" ] || [ "$project_number" = "null" ]; then
@@ -28,7 +35,7 @@ echo "Project NUMBER: $project_number"
 ensure_single_select() {
   local name="$1"; shift
   local options_csv="$1"; shift
-  if ! gh project field-list "$project_number" --owner "$GH_OWNER" --format json | jq -r '.fields[]?.name' | grep -Fxq "$name"; then
+  if ! gh project field-list "$project_number" --owner "$GH_OWNER" --format json | jq -r 'if type=="array" then . else .fields end | .[]? | .name' | grep -Fxq "$name"; then
     gh project field-create "$project_number" --owner "$GH_OWNER" --name "$name" --data-type SINGLE_SELECT \
       --single-select-options "$options_csv" >/dev/null
   fi
@@ -36,7 +43,7 @@ ensure_single_select() {
 
 ensure_text() {
   local name="$1"
-  if ! gh project field-list "$project_number" --owner "$GH_OWNER" --format json | jq -r '.fields[]?.name' | grep -Fxq "$name"; then
+  if ! gh project field-list "$project_number" --owner "$GH_OWNER" --format json | jq -r 'if type=="array" then . else .fields end | .[]? | .name' | grep -Fxq "$name"; then
     gh project field-create "$project_number" --owner "$GH_OWNER" --name "$name" --data-type TEXT >/dev/null
   fi
 }

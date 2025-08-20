@@ -90,15 +90,19 @@ def add_depends_body(issue_number: int, dep_issue_numbers: list[int]):
 
 
 def get_field_ids(owner: str, project_number: int):
-    fields = gh_json(["project", "field-list", str(project_number), "--owner", owner]).get("fields", [])
-    by_name = {f["name"]: f for f in fields}
+    data = gh_json(["project", "field-list", str(project_number), "--owner", owner])
+    if isinstance(data, dict):
+        fields = data.get("fields", [])
+    else:
+        fields = data if isinstance(data, list) else []
+    by_name = {f.get("name"): f for f in fields if isinstance(f, dict) and f.get("name")}
     return by_name
 
 
 def ensure_in_project(owner: str, project_number: int, issue_url: str) -> str:
     # Try add; on success return item id
     try:
-        out = run(["gh", "project", "item-add", "--owner", owner, "--number", str(project_number), "--url", issue_url, "--format", "json"])
+        out = run(["gh", "project", "item-add", str(project_number), "--owner", owner, "--url", issue_url, "--format", "json"])
         if out:
             data = json.loads(out)
             item_id = data.get("id") or data.get("item") or data.get("data", {}).get("id")
@@ -146,7 +150,7 @@ def set_single_select(owner: str, project_number: int, item_id: str, field_name:
     if not opt_id:
         raise RuntimeError(f"Option '{option_name}' not found for field '{field_name}'")
     run([
-        "gh", "project", "item-edit", "--owner", owner, "--number", str(project_number), "--id", item_id,
+        "gh", "project", "item-edit", str(project_number), "--owner", owner, "--id", item_id,
         "--field", field_id, "--single-select-option-id", opt_id,
     ])
 
@@ -155,7 +159,7 @@ def set_text(owner: str, project_number: int, item_id: str, field_name: str, val
     field = fields_by_name[field_name]
     field_id = field["id"]
     run([
-        "gh", "project", "item-edit", "--owner", owner, "--number", str(project_number), "--id", item_id,
+        "gh", "project", "item-edit", str(project_number), "--owner", owner, "--id", item_id,
         "--field", field_id, "--text", value,
     ])
 

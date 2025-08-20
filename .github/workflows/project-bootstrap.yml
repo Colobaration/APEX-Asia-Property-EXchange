@@ -6,15 +6,19 @@ on:
 jobs:
   bootstrap:
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Setup gh
+      - name: Validate token
         run: |
-          echo "$GH_TOKEN" | gh auth login --with-token
+          set -e
+          test -n "$GH_TOKEN" || (echo "GH_TOKEN is empty" && exit 1)
+          gh api user >/dev/null
       - name: Create/Ensure Project and Fields
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}

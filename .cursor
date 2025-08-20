@@ -1,0 +1,7 @@
+{
+  "collaboration": true,
+  "shared": ["frontend", "backend", "integrations", "analytics", "docs"],
+  "owners": ["dev1-backend", "dev2-frontend"],
+  "branchStrategy": "feature-branches",
+  "defaultBranch": "dev"
+}

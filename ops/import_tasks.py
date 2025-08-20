@@ -47,7 +47,7 @@ def get_project_number() -> int:
 def ensure_issue(owner_repo: str, title: str, body: str, labels: list[str], assignee: str | None) -> int:
     # Try to find issue by exact title
     issues_json = run([
-        "gh", "issue", "list", "--state", "all", "--json", "number,title",
+        "gh", "issue", "list", "-R", owner_repo, "--state", "all", "--json", "number,title",
     ])
     issues = json.loads(issues_json) if issues_json else []
     for it in issues:
@@ -55,7 +55,7 @@ def ensure_issue(owner_repo: str, title: str, body: str, labels: list[str], assi
             return int(it["number"])
 
     # Create new issue
-    cmd = ["gh", "issue", "create", "--title", title, "--body", body]
+    cmd = ["gh", "issue", "create", "-R", owner_repo, "--title", title, "--body", body]
     if labels:
         for lb in labels:
             cmd += ["--label", lb]
@@ -67,26 +67,48 @@ def ensure_issue(owner_repo: str, title: str, body: str, labels: list[str], assi
     return number
 
 
-def ensure_labels(issue_number: int, labels: list[str]):
+def get_existing_label_names(owner_repo: str) -> set[str]:
+    out = run(["gh", "label", "list", "-R", owner_repo, "--json", "name"])
+    try:
+        data = json.loads(out) if out else []
+    except json.JSONDecodeError:
+        data = []
+    return {it.get("name") for it in data if isinstance(it, dict) and it.get("name")}
+
+
+def ensure_labels(owner_repo: str, issue_number: int, labels: list[str]):
     if not labels:
         return
-    cmd = ["gh", "issue", "edit", str(issue_number)]
+    existing = get_existing_label_names(owner_repo)
+    for lb in labels:
+        if lb not in existing:
+            # create label non-interactively with a default color
+            try:
+                run(["gh", "label", "create", "-R", owner_repo, lb, "--color", "ededed"], check=False)
+            except subprocess.CalledProcessError:
+                pass
+            existing.add(lb)
+    cmd = ["gh", "issue", "edit", "-R", owner_repo, str(issue_number)]
     for lb in labels:
         cmd += ["--add-label", lb]
     run(cmd)
 
 
-def ensure_assignee(issue_number: int, assignee: str | None):
+def ensure_assignee(owner_repo: str, issue_number: int, assignee: str | None):
     if not assignee:
         return
-    run(["gh", "issue", "edit", str(issue_number), "--add-assignee", assignee])
+    # If user isn't a collaborator this may fail; don't crash the whole import
+    try:
+        run(["gh", "issue", "edit", "-R", owner_repo, str(issue_number), "--add-assignee", assignee])
+    except subprocess.CalledProcessError:
+        pass
 
 
-def add_depends_body(issue_number: int, dep_issue_numbers: list[int]):
+def add_depends_body(owner_repo: str, issue_number: int, dep_issue_numbers: list[int]):
     if not dep_issue_numbers:
         return
     # Get current body
-    issue = gh_json(["issue", "view", str(issue_number), "--json", "body"])
+    issue = gh_json(["issue", "view", "-R", owner_repo, str(issue_number), "--json", "body"])
     current_body = issue.get("body") or ""
     new_lines = []
     for dep in dep_issue_numbers:
@@ -96,7 +118,7 @@ def add_depends_body(issue_number: int, dep_issue_numbers: list[int]):
     if not new_lines:
         return
     new_body = (current_body + "\n\n" + "\n".join(new_lines)).strip()
-    run(["gh", "issue", "edit", str(issue_number), "--body", new_body])
+    run(["gh", "issue", "edit", "-R", owner_repo, str(issue_number), "--body", new_body])
 
 
 def get_field_ids(owner: str, project_number: int):
@@ -206,12 +228,12 @@ def main():
 
         assignee = owner_map.get(owner_key)
         issue_number = ensure_issue(repo, title, body, labels, assignee)
-        ensure_labels(issue_number, labels)
-        ensure_assignee(issue_number, assignee)
+        ensure_labels(repo, issue_number, labels)
+        ensure_assignee(repo, issue_number, assignee)
 
         # Add depends lines if earlier issues known
         dep_issue_numbers = [id_to_issue[d] for d in depends if d in id_to_issue]
-        add_depends_body(issue_number, dep_issue_numbers)
+        add_depends_body(repo, issue_number, dep_issue_numbers)
 
         # Add to project and set fields
         issue_url = f"https://api.github.com/repos/{repo}/issues/{issue_number}"

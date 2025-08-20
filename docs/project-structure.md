@@ -242,6 +242,12 @@ docker-compose -f docker-compose.prod.yml up -d
 - **[Pipelines](./pipelines.md)** - воронка продаж
 - **[Test Plan](./test-plan.md)** - план тестирования
 
+## Как запускать Cursor и где лежат промты
+
+- Правила и шаблоны Cursor: `.cursor/` (`rules.md`, `templates/*`).
+- Промты под фичи: `prompts/` (создавайте `prompts/<фича>.prompt.md` по шаблону `.cursor/templates/feature-prompt.md`).
+- Для самопроверки перед PR используйте `.cursor/templates/review-prompt.md`.
+
 ### Технологии
 - **Frontend**: Next.js 14, React 18, TypeScript, Tailwind CSS
 - **Backend**: FastAPI, SQLAlchemy, PostgreSQL, Alembic

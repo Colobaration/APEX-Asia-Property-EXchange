@@ -1,0 +1,6 @@
+/backend/**     @devA
+/integrations/** @devA
+/frontend/**    @devB
+/docs/**        @devA @devB
+/prompts/**     @devA @devB
+

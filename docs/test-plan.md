@@ -360,3 +360,12 @@ docker-compose -f docker-compose.test.yml down
 - Тест-кейсы в TestRail
 - Баг-репорты в Jira
 - Документация тестов
+
+## Проверка задач Cursor'ом
+
+- Запуск шаблона самопроверки: `.cursor/templates/review-prompt.md`.
+- Локальные команды проверки: `make check`.
+- Критерии приёма (DoD):
+  - Тесты покрывают happy path + 1–2 edge cases.
+  - `make check` зелёный.
+  - Документация/README обновлены.

@@ -207,6 +207,13 @@ docker-compose -f docker-compose.prod.yml up -d
 - [Pipelines](./docs/pipelines.md) - воронка продаж
 - [Test Plan](./docs/test-plan.md) - план тестирования
 
+## Dev workflow (2 разработчика + Cursor)
+
+1) Создаём ветку `feature/<имя>`.
+2) Спека/контекст в `docs/*.md`, промт — `prompts/<фича>.prompt.md` (шаблон в `.cursor/templates/feature-prompt.md`).
+3) Запускаем Cursor на ветке, получаем изменения.
+4) Локально: `make check` → PR (шаблон) → ревью владельцем по CODEOWNERS.
+
 ## Технологии
 
 ### Frontend

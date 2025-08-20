@@ -17,6 +17,7 @@ pip-delete-this-directory.txt
 .env.development.local
 .env.test.local
 .env.production.local
+.env.*
 
 # Logs
 *.log
@@ -29,6 +30,8 @@ yarn-error.log*
 dist/
 build/
 *.egg-info/
+/.nuxt/
+/.vite/
 
 # Database
 pgdata/
@@ -54,6 +57,17 @@ coverage/
 .coverage
 .pytest_cache/
 htmlcov/
+/.next/
+dist/
+build/
+/.coverage
+*.log
+.DS_Store
+__pycache__/
+node_modules/
+/.next/
+/dist/
+/build/
 
 # Temporary files
 *.tmp

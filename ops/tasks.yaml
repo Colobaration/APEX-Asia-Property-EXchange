@@ -1,0 +1,174 @@
+---
+tasks:
+  - id: 1
+    title: "Настройка Cursor и защита репозитория"
+    body: "Добавить .cursor/*, CODEOWNERS, Makefile, pre-commit, .editorconfig, .gitignore; включить защиту веток main/dev."
+    labels: ["инфра","черновик","P0"]
+    owner: "DEV_A"
+    area: "инфра"
+    priority: "P0"
+
+  - id: 2
+    title: "CI GitHub Actions для бэкенда и фронтенда"
+    body: "Добавить .github/workflows/ci.yml: линтеры/тесты/сборка."
+    labels: ["инфра","черновик","P0"]
+    owner: "DEV_A"
+    area: "инфра"
+    priority: "P0"
+
+  - id: 3
+    title: "Секреты и README (DevOps-политика)"
+    body: "Описать секреты/переменные; дополнить env.example; обновить README."
+    labels: ["инфра","документация","P0"]
+    owner: "DEV_A"
+    area: "инфра"
+    priority: "P0"
+
+  - id: 4
+    title: "OAuth2 Kommo: код→токены и авто-обновление"
+    body: "Реализовать /oauth/start и /oauth/callback; авто-refresh; тесты."
+    labels: ["бэкенд","фича","P0"]
+    owner: "DEV_A"
+    area: "бэкенд"
+    priority: "P0"
+
+  - id: 5
+    title: "Приём формы лида + валидация"
+    body: "POST /lead; Pydantic; безопасные логи."
+    labels: ["бэкенд","фича","P0"]
+    owner: "DEV_A"
+    area: "бэкенд"
+    priority: "P0"
+    depends_on: [4]
+
+  - id: 6
+    title: "Клиент Kommo: поиск/создание контакта"
+    body: "Поиск по телефону/email; создание при отсутствии; юнит-тесты с моками."
+    labels: ["бэкенд","фича","P0"]
+    owner: "DEV_A"
+    area: "бэкенд"
+    priority: "P0"
+    depends_on: [4]
+
+  - id: 7
+    title: "Клиент Kommo: сделка + привязка + заметка"
+    body: "Создание сделки; линковка контакта; заметка с UTM/landing/referrer; тесты."
+    labels: ["бэкенд","фича","P0"]
+    owner: "DEV_A"
+    area: "бэкенд"
+    priority: "P0"
+    depends_on: [5,6]
+
+  - id: 8
+    title: "Ретраи и лимиты (401/429/5xx)"
+    body: "Экспоненциальный backoff; авто-refresh; структурные логи."
+    labels: ["бэкенд","обслуживание","P1"]
+    owner: "DEV_A"
+    area: "бэкенд"
+    priority: "P1"
+    depends_on: [4,7]
+
+  - id: 9
+    title: "Приём вебхуков Kommo (смена статуса)"
+    body: "POST /webhook/kommo; валидация; корректные коды ответов."
+    labels: ["бэкенд","фича","P0"]
+    owner: "DEV_A"
+    area: "бэкенд"
+    priority: "P0"
+    depends_on: [7]
+
+  - id: 10
+    title: "Модель БД и запись истории стадий"
+    body: "Таблицы leads/lead_stages; миграции; запись статусов."
+    labels: ["бэкенд","фича","P0"]
+    owner: "DEV_A"
+    area: "бэкенд"
+    priority: "P0"
+    depends_on: [9]
+
+  - id: 11
+    title: "Политика логов и маскирование PII"
+    body: "Маска телефона/email; уровни логов."
+    labels: ["инфра","безопасность","P1"]
+    owner: "DEV_A"
+    area: "инфра"
+    priority: "P1"
+
+  - id: 12
+    title: "Лендинг: каркас + RU/EN + UTM"
+    body: "Форма; сбор UTM; отправка на /lead; валидация UI."
+    labels: ["фронтенд","фича","P0"]
+    owner: "DEV_B"
+    area: "фронтенд"
+    priority: "P0"
+    depends_on: [5]
+
+  - id: 13
+    title: "Кнопки WhatsApp/Telegram (CTA)"
+    body: "Кнопки WA/TG; конфиги через .env; трекинг кликов."
+    labels: ["фронтенд","фича","P1"]
+    owner: "DEV_B"
+    area: "фронтенд"
+    priority: "P1"
+
+  - id: 14
+    title: "Админ-вид: история сделки (mock → live)"
+    body: "Таблица истории стадий; затем подключение к API."
+    labels: ["фронтенд","фича","P2"]
+    owner: "DEV_B"
+    area: "фронтенд"
+    priority: "P2"
+    depends_on: [10]
+
+  - id: 15
+    title: "Агрегатор CPL/CR (MVP)"
+    body: "Скрипт в analytics/pipeline; выгрузка CSV по источнику."
+    labels: ["аналитика","фича","P1"]
+    owner: "DEV_B"
+    area: "аналитика"
+    priority: "P1"
+    depends_on: [10]
+
+  - id: 16
+    title: "Простой дашборд метрик"
+    body: "Таблица/график CPL/CR (фронт или md-отчёт)."
+    labels: ["аналитика","фича","P2"]
+    owner: "DEV_B"
+    area: "аналитика"
+    priority: "P2"
+    depends_on: [15]
+
+  - id: 17
+    title: "Заготовка интеграции WhatsApp"
+    body: "Клиент и конфиг; README; фича выключена по умолчанию."
+    labels: ["интеграции","обслуживание","P2"]
+    owner: "DEV_A"
+    area: "интеграции"
+    priority: "P2"
+
+  - id: 18
+    title: "Заготовка интеграции Email"
+    body: "SMTP/API провайдер; шаблон письма; выключено по умолчанию."
+    labels: ["интеграции","обслуживание","P2"]
+    owner: "DEV_A"
+    area: "интеграции"
+    priority: "P2"
+
+  - id: 19
+    title: "Актуализация документации (Endpoints/CRM-поля/Воронки)"
+    body: "Обновить схемы/поля; ссылки на файлы кода."
+    labels: ["документация","обслуживание","P1"]
+    owner: "DEV_B"
+    area: "документация"
+    priority: "P1"
+
+  - id: 20
+    title: "Тест-план: сценарии приёма"
+    body: "От формы до статусов и аналитики; команды запуска."
+    labels: ["QA","документация","P1"]
+    owner: "DEV_B"
+    area: "QA"
+    priority: "P1"
+---
+
+

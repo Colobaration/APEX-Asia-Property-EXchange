@@ -1,0 +1,136 @@
+name: Project Sync
+
+on:
+  issues:
+    types: [opened, edited, closed, reopened, labeled, assigned, unlabeled]
+  pull_request:
+    types: [opened, edited, closed, reopened, labeled, ready_for_review, review_requested, synchronize]
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    env:
+      GH_OWNER: ${{ vars.GH_OWNER }}
+      GH_PROJECT_NAME: ${{ vars.GH_PROJECT_NAME }}
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}
+      REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+      - name: Auth gh
+        run: echo "$GH_TOKEN" | gh auth login --with-token
+      - name: Determine project number
+        id: proj
+        run: |
+          set -e
+          if [ -f ops/.project_number ]; then
+            PN=$(cat ops/.project_number)
+          else
+            PN=$(gh project list --owner "$GH_OWNER" --format json | jq -r \
+              --arg NAME "$GH_PROJECT_NAME" '.[] | select(.title==$NAME) | .number' | head -n1)
+          fi
+          if [ -z "$PN" ]; then
+            echo "Project not found" >&2; exit 1
+          fi
+          echo "project_number=$PN" >> $GITHUB_OUTPUT
+      - name: Sync item to project and set status
+        env:
+          PROJECT_NUMBER: ${{ steps.proj.outputs.project_number }}
+        run: |
+          set -e
+          evt="${{ github.event_name }}"
+          action="${{ github.event.action }}"
+
+          get_field_ids() {
+            gh project field-list "$PROJECT_NUMBER" --owner "$GH_OWNER" --format json
+          }
+
+          get_option_id() {
+            local field_json="$1"; local field_name="$2"; local opt_name="$3"
+            echo "$field_json" | jq -r --arg FN "$field_name" --arg ON "$opt_name" \
+              '.fields[] | select(.name==$FN) | .options[] | select(.name==$ON) | .id'
+          }
+
+          get_field_id() {
+            local field_json="$1"; local field_name="$2"
+            echo "$field_json" | jq -r --arg FN "$field_name" '.fields[] | select(.name==$FN) | .id'
+          }
+
+          ensure_item_id() {
+            local api_url="$1"
+            local add_json
+            set +e
+            add_json=$(gh project item-add --owner "$GH_OWNER" --number "$PROJECT_NUMBER" --url "$api_url" --format json 2>/dev/null)
+            rc=$?
+            set -e
+            if [ $rc -eq 0 ] && [ -n "$add_json" ]; then
+              echo "$add_json" | jq -r '.id // .item // .data.id'
+              return 0
+            fi
+            # find existing via GraphQL
+            content_node_id=$(gh api "$api_url" | jq -r '.node_id')
+            q='query($org:String!, $number:Int!) { organization(login:$org) { projectV2(number:$number) { items(first:200) { nodes { id content { __typename ... on Issue { id } ... on PullRequest { id } } } } } } }'
+            vars=$(jq -n --arg org "$GH_OWNER" --argjson number "$PROJECT_NUMBER" '{org:$org, number:$number}')
+            nodes=$(gh api graphql -f query="$q" -f variables="$vars" | jq -c '.data.organization.projectV2.items.nodes[]')
+            while IFS= read -r n; do
+              cid=$(echo "$n" | jq -r '.content.id')
+              if [ "$cid" = "$content_node_id" ]; then
+                echo "$n" | jq -r '.id'
+                return 0
+              fi
+            done <<< "$nodes"
+            echo ""  # not found
+          }
+
+          set_status() {
+            local item_id="$1"; local status_name="$2"
+            fields=$(get_field_ids)
+            field_id=$(get_field_id "$fields" "Статус")
+            opt_id=$(get_option_id "$fields" "Статус" "$status_name")
+            if [ -z "$field_id" ] || [ -z "$opt_id" ]; then
+              echo "Field or option not found for 'Статус' -> $status_name" >&2; return 0
+            fi
+            gh project item-edit --owner "$GH_OWNER" --number "$PROJECT_NUMBER" --id "$item_id" \
+              --field "$field_id" --single-select-option-id "$opt_id"
+          }
+
+          target_api_url=""
+          desired_status=""
+
+          if [ "$evt" = "issues" ]; then
+            num=${{ github.event.issue.number }}
+            target_api_url="https://api.github.com/repos/$REPO/issues/$num"
+            if [ "$action" = "opened" ] || [ "$action" = "reopened" ]; then
+              desired_status="К выполнению"
+            elif [ "$action" = "assigned" ] || [ "$action" = "labeled" ] && echo '${{ toJson(github.event.issue.labels) }}' | jq -e '.[] | select(.name=="in-progress")' >/dev/null; then
+              desired_status="В работе"
+            elif [ "$action" = "closed" ]; then
+              desired_status="Готово"
+            fi
+          else
+            num=${{ github.event.pull_request.number }}
+            target_api_url="https://api.github.com/repos/$REPO/pulls/$num"
+            merged=${{ github.event.pull_request.merged || false }}
+            draft=${{ github.event.pull_request.draft || false }}
+            if [ "$merged" = "true" ] || { [ "$action" = "closed" ] && [ "$merged" = "true" ]; }; then
+              desired_status="Готово"
+            elif [ "$action" = "ready_for_review" ] || { [ "$action" = "labeled" ] && echo '${{ toJson(github.event.pull_request.labels) }}' | jq -e '.[] | select(.name=="ready-for-review")' >/dev/null; }; then
+              desired_status="На ревью"
+            elif [ "$action" = "opened" ] || [ "$action" = "reopened" ] || [ "$action" = "synchronize" ] || [ "$action" = "review_requested" ] || [ "$action" = "edited" ]; then
+              desired_status="В работе"
+            fi
+          fi
+
+          if [ -z "$target_api_url" ] || [ -z "$desired_status" ]; then
+            echo "No changes required for this event/action"
+            exit 0
+          fi
+
+          item_id=$(ensure_item_id "$target_api_url")
+          if [ -z "$item_id" ]; then
+            echo "Could not ensure project item" >&2
+            exit 0
+          fi
+          set_status "$item_id" "$desired_status"
+

@@ -214,6 +214,16 @@ docker-compose -f docker-compose.prod.yml up -d
 3) Запускаем Cursor на ветке, получаем изменения.
 4) Локально: `make check` → PR (шаблон) → ревью владельцем по CODEOWNERS.
 
+## Проект задач (GitHub Project)
+
+- Запуск bootstrap: GitHub Actions → `Project Bootstrap` → Run workflow.
+- Требуются секреты/переменные репозитория:
+  - `secrets.GH_TOKEN` — токен с правами `project:write`, `repo`.
+  - `vars.GH_OWNER` — владелец (org или user).
+  - `vars.GH_PROJECT_NAME` — название проекта (например: `APEX — Неделя 1`).
+  - `vars.DEV_A` и `vars.DEV_B` — логины разработчиков.
+- Связь PR с задачами: в описании PR используйте `Closes #<issue>`, `Fixes #<issue>`.
+
 ## Технологии
 
 ### Frontend

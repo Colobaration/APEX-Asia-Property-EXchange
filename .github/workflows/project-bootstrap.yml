@@ -1,0 +1,38 @@
+name: Project Bootstrap
+
+on:
+  workflow_dispatch:
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Setup gh
+        run: |
+          echo "$GH_TOKEN" | gh auth login --with-token
+      - name: Create/Ensure Project and Fields
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_OWNER: ${{ vars.GH_OWNER }}
+          GH_PROJECT_NAME: ${{ vars.GH_PROJECT_NAME }}
+        run: |
+          bash ops/project_bootstrap.sh
+      - name: Import tasks into Issues and Project
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_OWNER: ${{ vars.GH_OWNER }}
+          GH_PROJECT_NAME: ${{ vars.GH_PROJECT_NAME }}
+          DEV_A: ${{ vars.DEV_A }}
+          DEV_B: ${{ vars.DEV_B }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pyyaml
+          python ops/import_tasks.py
+
+

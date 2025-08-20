@@ -18,7 +18,17 @@ def load_yaml(path: Path):
         print("PyYAML is required. Please install it: pip install pyyaml", file=sys.stderr)
         sys.exit(1)
     with path.open("r", encoding="utf-8") as f:
-        return yaml.safe_load(f)
+        # Support multiple YAML documents; merge their tasks arrays
+        docs = [d for d in (yaml.safe_load_all(f)) if d]
+    if not docs:
+        return {"tasks": []}
+    if len(docs) == 1:
+        return docs[0]
+    merged_tasks: list[dict] = []
+    for d in docs:
+        if isinstance(d, dict) and isinstance(d.get("tasks"), list):
+            merged_tasks.extend(d["tasks"]) 
+    return {"tasks": merged_tasks}
 
 
 def gh_json(args):

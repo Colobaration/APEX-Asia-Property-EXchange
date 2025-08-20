@@ -36,6 +36,31 @@ def gh_json(args):
     return json.loads(out) if out else {}
 
 
+def detect_current_repo() -> str | None:
+    # Try gh repo view first
+    try:
+        out = run(["gh", "repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"], check=False)
+        if out and "/" in out:
+            return out.strip()
+    except subprocess.CalledProcessError:
+        pass
+    # Fallback to git remote parsing
+    try:
+        url = run(["git", "config", "--get", "remote.origin.url"], check=False)
+        url = (url or "").strip()
+        if url.startswith("git@github.com:"):
+            repo = url.split(":", 1)[1]
+        elif url.startswith("https://github.com/"):
+            repo = url.split("github.com/", 1)[1]
+        else:
+            repo = ""
+        if repo.endswith(".git"):
+            repo = repo[:-4]
+        return repo if "/" in repo else None
+    except Exception:
+        return None
+
+
 def get_project_number() -> int:
     path = Path(__file__).resolve().parent / ".project_number"
     if not path.exists():
@@ -207,7 +232,11 @@ def main():
 
     os.environ["GH_TOKEN"] = gh_token
 
-    repo = os.environ.get("GITHUB_REPOSITORY", "")
+    repo_env = os.environ.get("GITHUB_REPOSITORY", "").strip()
+    repo = repo_env if repo_env and repo_env != "owner/repo" and "/" in repo_env else (detect_current_repo() or "")
+    if not repo or "/" not in repo:
+        print("GITHUB_REPOSITORY must be set to 'owner/repo' or be detectable via gh/git.", file=sys.stderr)
+        sys.exit(1)
     project_number = get_project_number()
 
     tasks_data = load_yaml(Path(__file__).resolve().parent / "tasks.yaml")

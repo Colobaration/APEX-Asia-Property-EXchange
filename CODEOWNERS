@@ -1,6 +1,6 @@
-/backend/**     @devA
-/integrations/** @devA
+/backend/**     @Zaebanec
+/integrations/** @Zaebanec
 /frontend/**    @devB
-/docs/**        @devA @devB
-/prompts/**     @devA @devB
+/docs/**        @Zaebanec @devB
+/prompts/**     @Zaebanec @devB
 

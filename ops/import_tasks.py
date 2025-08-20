@@ -147,19 +147,64 @@ def add_depends_body(owner_repo: str, issue_number: int, dep_issue_numbers: list
 
 
 def get_field_ids(owner: str, project_number: int):
-    data = gh_json(["project", "field-list", str(project_number), "--owner", owner])
-    if isinstance(data, dict):
-        fields = data.get("fields", [])
-    else:
-        fields = data if isinstance(data, list) else []
+    # Prefer GraphQL to reliably fetch options for SINGLE_SELECT fields
+    query = """
+    query($org:String!, $number:Int!) {
+      organization(login:$org) {
+        projectV2(number:$number) {
+          fields(first: 100) {
+            nodes {
+              __typename
+              ... on ProjectV2FieldCommon { id name }
+              ... on ProjectV2SingleSelectField { id name options { id name } }
+            }
+          }
+        }
+      }
+    }
+    """
+    variables = {"org": owner, "number": project_number}
+    out = run(["gh", "api", "graphql", "-f", f"query={json.dumps(query)}", "-f", f"variables={json.dumps(variables)}"], check=False)
+    fields: list[dict] = []
+    try:
+        data = json.loads(out) if out else {}
+        nodes = (
+            data.get("data", {})
+            .get("organization", {})
+            .get("projectV2", {})
+            .get("fields", {})
+            .get("nodes", [])
+        )
+        for n in nodes:
+            if not isinstance(n, dict):
+                continue
+            name = n.get("name")
+            fid = n.get("id")
+            if not name or not fid:
+                continue
+            rec = {"id": fid, "name": name}
+            if "options" in n and isinstance(n["options"], list):
+                rec["options"] = n["options"]
+            fields.append(rec)
+    except json.JSONDecodeError:
+        pass
+
+    if not fields:
+        # Fallback to CLI JSON if GraphQL failed
+        data = gh_json(["project", "field-list", str(project_number), "--owner", owner])
+        if isinstance(data, dict):
+            fields = data.get("fields", [])
+        else:
+            fields = data if isinstance(data, list) else []
+
     by_name = {f.get("name"): f for f in fields if isinstance(f, dict) and f.get("name")}
     return by_name
 
 
-def ensure_in_project(owner: str, project_number: int, issue_url: str) -> str:
+def ensure_in_project(owner: str, project_number: int, issue_html_url: str, issue_api_url: str) -> str:
     # Try add; on success return item id
     try:
-        out = run(["gh", "project", "item-add", str(project_number), "--owner", owner, "--url", issue_url, "--format", "json"])
+        out = run(["gh", "project", "item-add", str(project_number), "--owner", owner, "--url", issue_html_url, "--format", "json"])
         if out:
             data = json.loads(out)
             item_id = data.get("id") or data.get("item") or data.get("data", {}).get("id")
@@ -170,7 +215,11 @@ def ensure_in_project(owner: str, project_number: int, issue_url: str) -> str:
 
     # If exists, find item id via GraphQL
     # Get node_id of the issue
-    issue_json = json.loads(run(["gh", "api", issue_url]))
+    issue_raw = run(["gh", "api", issue_api_url], check=False)
+    try:
+        issue_json = json.loads(issue_raw) if issue_raw else {}
+    except json.JSONDecodeError:
+        issue_json = {}
     content_node_id = issue_json.get("node_id")
     q = {
         "query": """
@@ -186,7 +235,11 @@ def ensure_in_project(owner: str, project_number: int, issue_url: str) -> str:
         """,
         "variables": {"org": owner, "number": project_number},
     }
-    res = json.loads(run(["gh", "api", "graphql", "-f", f"query={json.dumps(q['query'])}", "-f", f"variables={json.dumps(q['variables'])}"]))
+    gql_out = run(["gh", "api", "graphql", "-f", f"query={json.dumps(q['query'])}", "-f", f"variables={json.dumps(q['variables'])}"], check=False)
+    try:
+        res = json.loads(gql_out) if gql_out else {}
+    except json.JSONDecodeError:
+        res = {}
     nodes = res.get("data", {}).get("organization", {}).get("projectV2", {}).get("items", {}).get("nodes", [])
     for n in nodes:
         content = n.get("content") or {}
@@ -208,7 +261,7 @@ def set_single_select(owner: str, project_number: int, item_id: str, field_name:
         raise RuntimeError(f"Option '{option_name}' not found for field '{field_name}'")
     run([
         "gh", "project", "item-edit", str(project_number), "--owner", owner, "--id", item_id,
-        "--field", field_id, "--single-select-option-id", opt_id,
+        "--field-id", field_id, "--single-select-option-id", opt_id,
     ])
 
 
@@ -217,7 +270,7 @@ def set_text(owner: str, project_number: int, item_id: str, field_name: str, val
     field_id = field["id"]
     run([
         "gh", "project", "item-edit", str(project_number), "--owner", owner, "--id", item_id,
-        "--field", field_id, "--text", value,
+        "--field-id", field_id, "--text", value,
     ])
 
 
@@ -265,8 +318,9 @@ def main():
         add_depends_body(repo, issue_number, dep_issue_numbers)
 
         # Add to project and set fields
-        issue_url = f"https://api.github.com/repos/{repo}/issues/{issue_number}"
-        item_id = ensure_in_project(gh_owner, project_number, issue_url)
+        issue_html_url = f"https://github.com/{repo}/issues/{issue_number}"
+        issue_api_url = f"https://api.github.com/repos/{repo}/issues/{issue_number}"
+        item_id = ensure_in_project(gh_owner, project_number, issue_html_url, issue_api_url)
         fields_by_name = get_field_ids(gh_owner, project_number)
         set_single_select(gh_owner, project_number, item_id, "Статус", "К выполнению", fields_by_name)
         set_single_select(gh_owner, project_number, item_id, "Область", area, fields_by_name)

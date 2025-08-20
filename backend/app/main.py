@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.api import leads, auth, webhooks, analytics
+from app.api import leads, auth, webhooks, analytics, notifications
 
 app = FastAPI(
     title="Asia Deals CRM API",
@@ -23,6 +23,7 @@ app.include_router(leads.router, prefix="/api/leads", tags=["leads"])
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(webhooks.router, prefix="/api/webhooks", tags=["webhooks"])
 app.include_router(analytics.router, prefix="/api/analytics", tags=["analytics"])
+app.include_router(notifications.router, prefix="/api/notifications", tags=["notifications"])
 
 @app.get("/")
 async def root():

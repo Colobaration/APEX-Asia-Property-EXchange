@@ -1,4 +1,4 @@
-.PHONY: install fmt lint test check check-backend check-frontend
+.PHONY: install fmt lint test check check-backend check-frontend protect
 
 install:
 	pip install -r backend/requirements.txt || true
@@ -24,4 +24,7 @@ check-backend:
 
 check-frontend:
 	cd frontend && npm run lint && npm run test --if-present && npm run build
+
+protect:
+	bash ops/protect_branches.sh
 

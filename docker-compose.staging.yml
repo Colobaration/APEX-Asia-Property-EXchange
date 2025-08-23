@@ -9,71 +9,24 @@ services:
     environment:
       - ENVIRONMENT=staging
       - LOG_LEVEL=INFO
-      - DATABASE_URL=postgresql://${DB_USER:-asia}:${DB_PASSWORD:-asia}@db:5432/${DB_NAME:-asia_crm_staging}
+      - DATABASE_URL=postgresql://asia:asia@db:5432/asia_crm_staging
       - REDIS_URL=redis://redis:6379
-      - SECRET_KEY=${SECRET_KEY:-your-staging-secret-key}
-      - AMOCRM_CLIENT_ID=${AMOCRM_CLIENT_ID:-}
-      - AMOCRM_CLIENT_SECRET=${AMOCRM_CLIENT_SECRET:-}
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - SECRET_KEY=your-staging-secret-key
     depends_on:
       - db
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8000/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-
-  frontend:
-    build: 
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: asia-frontend-staging
-    ports:
-      - "3001:3000"
-    environment:
-      - NODE_ENV=staging
-      - NEXT_PUBLIC_API_URL=http://backend:8000
-      - NEXT_PUBLIC_ENVIRONMENT=staging
-    depends_on:
-      - backend
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000 || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
 
   db:
     image: postgres:15
     container_name: asia-db-staging
     environment:
-      POSTGRES_USER: ${DB_USER:-asia}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-asia}
-      POSTGRES_DB: ${DB_NAME:-asia_crm_staging}
+      POSTGRES_USER: asia
+      POSTGRES_PASSWORD: asia
+      POSTGRES_DB: asia_crm_staging
     volumes:
       - pgdata_staging:/var/lib/postgresql/data
     ports:
       - "5433:5432"
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-asia} -d ${DB_NAME:-asia_crm_staging}"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  nginx:
-    image: nginx:alpine
-    container_name: asia-nginx-staging
-    ports:
-      - "8080:80"
-    volumes:
-      - ./nginx/nginx-staging.conf:/etc/nginx/nginx.conf:ro
-    depends_on:
-      - backend
-      - frontend
     restart: unless-stopped
 
   redis:

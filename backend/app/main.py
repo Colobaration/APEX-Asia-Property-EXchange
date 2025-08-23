@@ -22,10 +22,6 @@ async def health_check():
 async def root():
     return {"message": "APEX Asia Property Exchange API"}
 
-# Здесь будут импортированы и подключены остальные роутеры
-# from app.api import auth, leads, analytics, notifications, webhooks
-# app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
-# app.include_router(leads.router, prefix="/api/leads", tags=["leads"])
-# app.include_router(analytics.router, prefix="/api/analytics", tags=["analytics"])
-# app.include_router(notifications.router, prefix="/api/notifications", tags=["notifications"])
-# app.include_router(webhooks.router, prefix="/api/webhooks", tags=["webhooks"])
+# Подключаем webhook роутер
+from app.api import webhooks
+app.include_router(webhooks.router, prefix="/api/webhooks", tags=["webhooks"])

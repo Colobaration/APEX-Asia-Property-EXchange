@@ -28,16 +28,16 @@ services:
       start_period: 40s
 
   frontend:
-    build: ./frontend
+    build: 
+      context: ./frontend
+      dockerfile: Dockerfile
     container_name: asia-frontend-staging
     ports:
       - "3001:3000"
     environment:
       - NODE_ENV=staging
-      - NEXT_PUBLIC_API_URL=https://api.staging.${DOMAIN:-yourdomain.com}
+      - NEXT_PUBLIC_API_URL=http://backend:8000
       - NEXT_PUBLIC_ENVIRONMENT=staging
-    volumes:
-      - ./logs:/app/logs
     depends_on:
       - backend
     restart: unless-stopped

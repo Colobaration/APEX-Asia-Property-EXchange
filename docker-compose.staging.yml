@@ -15,13 +15,11 @@ services:
       - AMOCRM_CLIENT_ID=${AMOCRM_CLIENT_ID:-}
       - AMOCRM_CLIENT_SECRET=${AMOCRM_CLIENT_SECRET:-}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
-    volumes:
-      - ./logs:/app/logs
     depends_on:
       - db
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8000/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -42,7 +40,7 @@ services:
       - backend
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000 || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -57,7 +55,6 @@ services:
       POSTGRES_DB: ${DB_NAME:-asia_crm_staging}
     volumes:
       - pgdata_staging:/var/lib/postgresql/data
-      - ./backups:/backups
     ports:
       - "5433:5432"
     restart: unless-stopped
@@ -72,11 +69,8 @@ services:
     container_name: asia-nginx-staging
     ports:
       - "8080:80"
-      - "8443:443"
     volumes:
-      - ./nginx/nginx-staging.conf:/etc/nginx/nginx.conf
-      - ./nginx/ssl:/etc/nginx/ssl
-      - ./logs/nginx:/var/log/nginx
+      - ./nginx/nginx-staging.conf:/etc/nginx/nginx.conf:ro
     depends_on:
       - backend
       - frontend

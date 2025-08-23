@@ -2,7 +2,7 @@ version: "3.9"
 
 services:
   backend:
-    image: ${REGISTRY:-ghcr.io}/${IMAGE_NAME:-your-repo}-backend:${TAG:-latest}
+    build: ./backend
     container_name: asia-backend-staging
     ports:
       - "8001:8000"
@@ -28,7 +28,7 @@ services:
       start_period: 40s
 
   frontend:
-    image: ${REGISTRY:-ghcr.io}/${IMAGE_NAME:-your-repo}-frontend:${TAG:-latest}
+    build: ./frontend
     container_name: asia-frontend-staging
     ports:
       - "3001:3000"
@@ -38,6 +38,8 @@ services:
       - NEXT_PUBLIC_ENVIRONMENT=staging
     volumes:
       - ./logs:/app/logs
+    depends_on:
+      - backend
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000"]

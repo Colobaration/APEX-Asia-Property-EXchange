@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     # WhatsApp настройки
     whatsapp_api_url: Optional[str] = None
     whatsapp_api_key: Optional[str] = None
+
+    # Telegram настройки
+    telegram_bot_token: Optional[str] = None
+    telegram_default_chat_id: Optional[str] = None
     
     # Логирование
     log_level: str = "INFO"

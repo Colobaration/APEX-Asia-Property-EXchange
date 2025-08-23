@@ -1,8 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
-from app.api import leads, auth, webhooks, analytics
-from app.api import notifications
+from app.api import leads, auth, webhooks, analytics, notifications
 
 app = FastAPI(
     title="Asia Deals CRM API",

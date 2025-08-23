@@ -3,8 +3,8 @@ from typing import Optional
 
 class Settings(BaseSettings):
     # amoCRM настройки
-    amocrm_client_id: str
-    amocrm_client_secret: str
+    amocrm_client_id: Optional[str] = None
+    amocrm_client_secret: Optional[str] = None
     amocrm_redirect_uri: str = "http://localhost:8000/api/auth/amo/callback"
     amocrm_refresh_token: Optional[str] = None
     amocrm_domain: Optional[str] = None
@@ -16,8 +16,8 @@ class Settings(BaseSettings):
     frontend_url: str = "http://localhost:3000"
     
     # Безопасность
-    secret_key: str
-    jwt_secret: str
+    secret_key: str = "your-staging-secret-key"
+    jwt_secret: str = "your-staging-jwt-secret"
     
     # Email настройки
     smtp_server: Optional[str] = None

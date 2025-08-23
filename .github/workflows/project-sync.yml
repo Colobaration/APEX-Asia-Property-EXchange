@@ -12,14 +12,15 @@ jobs:
     env:
       GH_OWNER: ${{ vars.GH_OWNER }}
       GH_PROJECT_NAME: ${{ vars.GH_PROJECT_NAME }}
-      GH_TOKEN: ${{ secrets.GH_TOKEN }}
       REPO: ${{ github.repository }}
     steps:
       - uses: actions/checkout@v4
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
-      - name: Auth gh
-        run: echo "$GH_TOKEN" | gh auth login --with-token
+      - name: Authenticate with GitHub CLI
+        run: gh auth login --with-token < ${{ secrets.GITHUB_TOKEN }}
+        env:
+          GH_TOKEN: ""
       - name: Determine project number
         id: proj
         run: |

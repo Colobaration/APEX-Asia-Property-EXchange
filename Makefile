@@ -164,3 +164,37 @@ monitor: ## Мониторинг системы
 	@echo "Логи ошибок:"
 	$(DOCKER_COMPOSE) logs --tail=50 backend | grep ERROR || echo "Ошибок не найдено"
 
+# Команды для webhook сервера
+webhook-test: ## Тестирование webhook сервера
+	@echo "$(GREEN)Тестирование webhook сервера...$(NC)"
+	$(PYTHON) scripts/test_webhook_server.py
+
+webhook-health: ## Проверка здоровья webhook сервера
+	@echo "$(GREEN)Проверка здоровья webhook сервера...$(NC)"
+	curl -s http://localhost:8000/api/webhooks/amo/health | $(PYTHON) -m json.tool
+
+webhook-status: ## Статус webhook сервера
+	@echo "$(GREEN)Статус webhook сервера...$(NC)"
+	curl -s http://localhost:8000/api/webhooks/amo/test | $(PYTHON) -m json.tool
+
+webhook-logs: ## Логи webhook сервера
+	@echo "$(GREEN)Логи webhook сервера:$(NC)"
+	$(DOCKER_COMPOSE) logs -f backend | grep -i webhook
+
+webhook-simulate: ## Симуляция webhook от amoCRM
+	@echo "$(GREEN)Симуляция webhook от amoCRM...$(NC)"
+	curl -X POST http://localhost:8000/api/webhooks/amo \
+		-H "Content-Type: application/json" \
+		-H "X-Client-UUID: test-uuid" \
+		-H "X-Signature: test-signature" \
+		-H "X-Account-ID: test-account" \
+		-d '{"leads": {"add": [{"id": 99999, "name": "Тестовый лид", "status_id": 1}]}}' | $(PYTHON) -m json.tool
+
+webhook-setup: ## Настройка webhook сервера
+	@echo "$(GREEN)Настройка webhook сервера...$(NC)"
+	@echo "1. Проверьте конфигурацию в .env файле"
+	@echo "2. Настройте webhook в amoCRM"
+	@echo "3. Создайте кастомные поля"
+	@echo "4. Запустите: make webhook-test"
+	@echo "5. Проверьте логи: make webhook-logs"
+

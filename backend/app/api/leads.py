@@ -1,17 +1,18 @@
 from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr, validator
 from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
 from app.core.db import get_db
 from app.integrations.amo.client import AmoCRMClient
 from app.core.logging import logger
+import re
 
 router = APIRouter()
 
 class LeadCreate(BaseModel):
     name: str
     phone: str
-    email: Optional[str] = None
+    email: Optional[EmailStr] = None
     utm_source: Optional[str] = None
     utm_medium: Optional[str] = None
     utm_campaign: Optional[str] = None
@@ -20,6 +21,34 @@ class LeadCreate(BaseModel):
     property_type: Optional[str] = None
     budget: Optional[float] = None
     notes: Optional[str] = None
+
+    @validator('name')
+    def validate_name(cls, v):
+        if not v or len(v.strip()) < 2:
+            raise ValueError('Имя должно содержать минимум 2 символа')
+        if len(v) > 100:
+            raise ValueError('Имя не может быть длиннее 100 символов')
+        return v.strip()
+
+    @validator('phone')
+    def validate_phone(cls, v):
+        # Удаляем все нецифровые символы
+        phone_clean = re.sub(r'\D', '', v)
+        if len(phone_clean) < 10 or len(phone_clean) > 15:
+            raise ValueError('Некорректный формат телефона')
+        return phone_clean
+
+    @validator('budget')
+    def validate_budget(cls, v):
+        if v is not None and v <= 0:
+            raise ValueError('Бюджет должен быть положительным числом')
+        return v
+
+    @validator('notes')
+    def validate_notes(cls, v):
+        if v and len(v) > 1000:
+            raise ValueError('Примечания не могут быть длиннее 1000 символов')
+        return v
 
 class LeadResponse(BaseModel):
     id: int

@@ -1,11 +1,12 @@
-# Makefile для APEX Asia Property Exchange
+# APEX Asia Property Exchange - Makefile
 
-.PHONY: help install start stop restart logs test clean migrate
+.PHONY: help install test lint build deploy clean docker-build docker-push
 
 # Переменные
-DOCKER_COMPOSE = docker-compose
-PYTHON = python3
-PIP = pip3
+PROJECT_NAME = apex-asia-property-exchange
+VERSION ?= $(shell git rev-parse --short HEAD)
+REGISTRY = ghcr.io
+IMAGE_NAME = $(shell git config --get remote.origin.url | sed 's/.*github.com[:/]\([^/]*\/[^/]*\).*/\1/')
 
 # Цвета для вывода
 GREEN = \033[0;32m
@@ -14,190 +15,195 @@ RED = \033[0;31m
 NC = \033[0m # No Color
 
 help: ## Показать справку
-	@echo "$(GREEN)APEX Asia Property Exchange - Команды управления$(NC)"
+	@echo "$(GREEN)APEX Asia Property Exchange - Команды:$(NC)"
 	@echo ""
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(YELLOW)%-15s$(NC) %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(YELLOW)%-20s$(NC) %s\n", $$1, $$2}'
 
-install: ## Установить зависимости
-	@echo "$(GREEN)Установка зависимостей...$(NC)"
-	$(PIP) install -r backend/requirements.txt
+# Установка зависимостей
+install: ## Установить все зависимости
+	@echo "$(GREEN)Устанавливаем зависимости...$(NC)"
+	cd backend && pip install -r requirements.txt
 	cd frontend && npm install
 
-start: ## Запустить приложение
-	@echo "$(GREEN)Запуск приложения...$(NC)"
-	$(DOCKER_COMPOSE) up -d
+# Тестирование
+test: ## Запустить все тесты
+	@echo "$(GREEN)Запускаем тесты...$(NC)"
+	cd backend && pytest tests/ -v --cov=app --cov-report=html
+	cd frontend && npm test -- --coverage --watchAll=false
 
-stop: ## Остановить приложение
-	@echo "$(YELLOW)Остановка приложения...$(NC)"
-	$(DOCKER_COMPOSE) down
+test-backend: ## Тестировать только backend
+	@echo "$(GREEN)Тестируем backend...$(NC)"
+	cd backend && pytest tests/ -v --cov=app --cov-report=html
 
-restart: stop start ## Перезапустить приложение
+test-frontend: ## Тестировать только frontend
+	@echo "$(GREEN)Тестируем frontend...$(NC)"
+	cd frontend && npm test -- --coverage --watchAll=false
 
-logs: ## Показать логи
-	@echo "$(GREEN)Логи приложения:$(NC)"
-	$(DOCKER_COMPOSE) logs -f backend
+# Линтинг
+lint: ## Запустить линтеры
+	@echo "$(GREEN)Запускаем линтеры...$(NC)"
+	cd backend && black . && isort . && flake8 .
+	cd frontend && npm run lint
 
-logs-frontend: ## Показать логи frontend
-	@echo "$(GREEN)Логи frontend:$(NC)"
-	$(DOCKER_COMPOSE) logs -f frontend
+lint-backend: ## Линтинг backend
+	@echo "$(GREEN)Линтинг backend...$(NC)"
+	cd backend && black . && isort . && flake8 .
 
-logs-db: ## Показать логи базы данных
-	@echo "$(GREEN)Логи базы данных:$(NC)"
-	$(DOCKER_COMPOSE) logs -f db
+lint-frontend: ## Линтинг frontend
+	@echo "$(GREEN)Линтинг frontend...$(NC)"
+	cd frontend && npm run lint
 
-test: ## Запустить тесты
-	@echo "$(GREEN)Запуск тестов...$(NC)"
-	cd backend && $(PYTHON) -m pytest tests/
+# Сборка
+build: ## Собрать все компоненты
+	@echo "$(GREEN)Собираем проект...$(NC)"
+	cd frontend && npm run build
 
-test-integration: ## Запустить тесты интеграции
-	@echo "$(GREEN)Запуск тестов интеграции amoCRM...$(NC)"
-	$(PYTHON) scripts/test_amocrm_integration.py
+# Docker команды
+docker-build: ## Собрать Docker образы
+	@echo "$(GREEN)Собираем Docker образы...$(NC)"
+	docker build -t $(REGISTRY)/$(IMAGE_NAME)-backend:$(VERSION) ./backend
+	docker build -t $(REGISTRY)/$(IMAGE_NAME)-frontend:$(VERSION) ./frontend
 
-migrate: ## Запустить миграции БД
-	@echo "$(GREEN)Запуск миграций...$(NC)"
-	cd backend && $(PYTHON) -m alembic upgrade head
+docker-push: ## Отправить Docker образы в registry
+	@echo "$(GREEN)Отправляем Docker образы...$(NC)"
+	docker push $(REGISTRY)/$(IMAGE_NAME)-backend:$(VERSION)
+	docker push $(REGISTRY)/$(IMAGE_NAME)-frontend:$(VERSION)
 
-migrate-create: ## Создать новую миграцию
-	@echo "$(GREEN)Создание новой миграции...$(NC)"
-	@read -p "Введите название миграции: " name; \
-	cd backend && $(PYTHON) -m alembic revision --autogenerate -m "$$name"
+# Простой деплой (без Kubernetes)
+deploy-staging: ## Деплой в staging
+	@echo "$(GREEN)Деплоим в staging...$(NC)"
+	./scripts/deploy-simple.sh staging $(VERSION)
 
-clean: ## Очистить проект
-	@echo "$(RED)Очистка проекта...$(NC)"
-	$(DOCKER_COMPOSE) down -v
-	docker system prune -f
-	rm -rf backend/__pycache__
-	rm -rf frontend/node_modules
+deploy-production: ## Деплой в production
+	@echo "$(GREEN)Деплоим в production...$(NC)"
+	./scripts/deploy-simple.sh production $(VERSION)
 
-setup: install migrate start ## Полная настройка проекта
+# Docker Compose команды
+dev: ## Запустить в режиме разработки
+	@echo "$(GREEN)Запускаем в режиме разработки...$(NC)"
+	docker-compose up -d
 
-status: ## Показать статус сервисов
+dev-stop: ## Остановить режим разработки
+	@echo "$(GREEN)Останавливаем режим разработки...$(NC)"
+	docker-compose down
+
+staging: ## Запустить staging окружение
+	@echo "$(GREEN)Запускаем staging окружение...$(NC)"
+	TAG=$(VERSION) docker-compose -f docker-compose.staging.yml up -d
+
+staging-stop: ## Остановить staging окружение
+	@echo "$(GREEN)Останавливаем staging окружение...$(NC)"
+	docker-compose -f docker-compose.staging.yml down
+
+production: ## Запустить production окружение
+	@echo "$(GREEN)Запускаем production окружение...$(NC)"
+	TAG=$(VERSION) docker-compose -f docker-compose.prod.yml up -d
+
+production-stop: ## Остановить production окружение
+	@echo "$(GREEN)Останавливаем production окружение...$(NC)"
+	docker-compose -f docker-compose.prod.yml down
+
+# Мониторинг
+status: ## Показать статус всех сервисов
 	@echo "$(GREEN)Статус сервисов:$(NC)"
-	$(DOCKER_COMPOSE) ps
+	@echo "Development:"
+	docker-compose ps
+	@echo ""
+	@echo "Staging:"
+	docker-compose -f docker-compose.staging.yml ps
+	@echo ""
+	@echo "Production:"
+	docker-compose -f docker-compose.prod.yml ps
 
-health: ## Проверить здоровье приложения
-	@echo "$(GREEN)Проверка здоровья приложения:$(NC)"
-	curl -f http://localhost:8000/health || echo "$(RED)Backend недоступен$(NC)"
-	curl -f http://localhost:3000 || echo "$(RED)Frontend недоступен$(NC)"
+logs: ## Показать логи development
+	@echo "$(GREEN)Логи development:$(NC)"
+	docker-compose logs -f
 
-amo-auth: ## Авторизация в amoCRM
-	@echo "$(GREEN)Открытие страницы авторизации amoCRM...$(NC)"
-	open http://localhost:8000/api/auth/amo
+logs-staging: ## Показать логи staging
+	@echo "$(GREEN)Логи staging:$(NC)"
+	docker-compose -f docker-compose.staging.yml logs -f
 
-amo-status: ## Проверить статус авторизации amoCRM
-	@echo "$(GREEN)Статус авторизации amoCRM:$(NC)"
-	curl -s http://localhost:8000/api/auth/amo/status | $(PYTHON) -m json.tool
+logs-production: ## Показать логи production
+	@echo "$(GREEN)Логи production:$(NC)"
+	docker-compose -f docker-compose.prod.yml logs -f
 
-amo-test: ## Тест подключения к amoCRM
-	@echo "$(GREEN)Тест подключения к amoCRM:$(NC)"
-	curl -s http://localhost:8000/api/auth/amo/test | $(PYTHON) -m json.tool
+# CI/CD
+ci-test: ## Запустить тесты для CI
+	@echo "$(GREEN)Запускаем CI тесты...$(NC)"
+	cd backend && pytest tests/ -v --cov=app --cov-report=xml
+	cd frontend && npm test -- --coverage --watchAll=false --coverageReporters=lcov
 
-create-lead: ## Создать тестовый лид
-	@echo "$(GREEN)Создание тестового лида...$(NC)"
-	curl -X POST http://localhost:8000/api/leads/ \
-		-H "Content-Type: application/json" \
-		-d '{"name": "Тест Тестов", "phone": "+79001234567", "email": "test@example.com", "utm_source": "test"}'
+ci-lint: ## Запустить линтеры для CI
+	@echo "$(GREEN)Запускаем CI линтеры...$(NC)"
+	cd backend && black --check . && isort --check-only . && flake8 .
+	cd frontend && npm run lint
 
-get-leads: ## Получить список лидов
-	@echo "$(GREEN)Список лидов:$(NC)"
-	curl -s http://localhost:8000/api/leads/ | $(PYTHON) -m json.tool
+# Безопасность
+security-scan: ## Сканирование безопасности
+	@echo "$(GREEN)Сканируем на уязвимости...$(NC)"
+	cd backend && safety check
+	cd frontend && npm audit
 
-shell: ## Открыть shell в контейнере backend
-	@echo "$(GREEN)Открытие shell в backend контейнере...$(NC)"
-	$(DOCKER_COMPOSE) exec backend bash
+# Мониторинг
+monitor: ## Мониторинг приложения
+	@echo "$(GREEN)Мониторинг приложения:$(NC)"
+	@echo "Development Backend health:"
+	curl -s http://localhost:8000/health || echo "Backend недоступен"
+	@echo "Development Frontend:"
+	curl -s http://localhost:3000/ | head -1 || echo "Frontend недоступен"
 
-db-shell: ## Открыть shell в базе данных
-	@echo "$(GREEN)Открытие shell в базе данных...$(NC)"
-	$(DOCKER_COMPOSE) exec db psql -U asia -d asia_crm
+monitor-staging: ## Мониторинг staging
+	@echo "$(GREEN)Мониторинг staging:$(NC)"
+	@echo "Staging Backend health:"
+	curl -s http://localhost:8001/health || echo "Backend недоступен"
+	@echo "Staging Frontend:"
+	curl -s http://localhost:3001/ | head -1 || echo "Frontend недоступен"
 
+# Создание релиза
+release: ## Создать новый релиз
+	@echo "$(GREEN)Создаем релиз...$(NC)"
+	@read -p "Введите версию (например, v1.2.3): " version; \
+	git tag $$version; \
+	git push origin $$version; \
+	echo "Релиз $$version создан и отправлен"
+
+# Полная проверка перед деплоем
+pre-deploy: install lint test security-scan ## Полная проверка перед деплоем
+	@echo "$(GREEN)Все проверки пройдены! Готов к деплою.$(NC)"
+
+# Очистка
+clean: ## Очистить временные файлы
+	@echo "$(GREEN)Очищаем временные файлы...$(NC)"
+	find . -type f -name "*.pyc" -delete
+	find . -type d -name "__pycache__" -delete
+	find . -type d -name "*.egg-info" -exec rm -rf {} +
+	cd frontend && rm -rf node_modules .next coverage
+	cd backend && rm -rf htmlcov .pytest_cache
+
+clean-all: ## Очистить все контейнеры и образы
+	@echo "$(RED)Очищаем все контейнеры и образы...$(NC)"
+	docker-compose down -v
+	docker-compose -f docker-compose.staging.yml down -v
+	docker-compose -f docker-compose.prod.yml down -v
+	docker system prune -af
+
+# Резервное копирование
 backup: ## Создать резервную копию БД
-	@echo "$(GREEN)Создание резервной копии БД...$(NC)"
-	$(DOCKER_COMPOSE) exec db pg_dump -U asia asia_crm > backup_$(shell date +%Y%m%d_%H%M%S).sql
+	@echo "$(GREEN)Создаем резервную копию БД...$(NC)"
+	docker exec asia-db pg_dump -U asia asia_crm > backup_$(shell date +%Y%m%d_%H%M%S).sql
 
+backup-staging: ## Создать резервную копию staging БД
+	@echo "$(GREEN)Создаем резервную копию staging БД...$(NC)"
+	docker exec asia-db-staging pg_dump -U asia asia_crm_staging > backup_staging_$(shell date +%Y%m%d_%H%M%S).sql
+
+# Восстановление
 restore: ## Восстановить БД из резервной копии
 	@echo "$(RED)Восстановление БД из резервной копии...$(NC)"
 	@read -p "Введите имя файла резервной копии: " file; \
-	$(DOCKER_COMPOSE) exec -T db psql -U asia asia_crm < $$file
+	docker exec -T asia-db psql -U asia asia_crm < $$file
 
-dev: ## Запуск в режиме разработки
-	@echo "$(GREEN)Запуск в режиме разработки...$(NC)"
-	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.dev.yml up -d
-
-prod: ## Запуск в режиме продакшн
-	@echo "$(GREEN)Запуск в режиме продакшн...$(NC)"
-	$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.prod.yml up -d
-
-# Специальные команды для amoCRM
-amo-setup: ## Настройка интеграции amoCRM
-	@echo "$(GREEN)Настройка интеграции amoCRM...$(NC)"
-	@echo "1. Создайте приложение в amoCRM"
-	@echo "2. Настройте OAuth2 права"
-	@echo "3. Создайте кастомные поля"
-	@echo "4. Настройте webhooks"
-	@echo "5. Заполните .env файл"
-	@echo "6. Запустите: make amo-auth"
-
-amo-docs: ## Открыть документацию amoCRM
-	@echo "$(GREEN)Открытие документации amoCRM...$(NC)"
-	open https://www.amocrm.ru/developers/content/oauth/step-by-step
-
-# Команды для разработки
-format: ## Форматировать код
-	@echo "$(GREEN)Форматирование кода...$(NC)"
-	cd backend && black .
-	cd frontend && npm run format
-
-lint: ## Проверить код
-	@echo "$(GREEN)Проверка кода...$(NC)"
-	cd backend && flake8 .
-	cd frontend && npm run lint
-
-# Команды для мониторинга
-monitor: ## Мониторинг системы
-	@echo "$(GREEN)Мониторинг системы:$(NC)"
-	@echo "CPU и память:"
-	docker stats --no-stream
-	@echo ""
-	@echo "Дисковое пространство:"
-	df -h
-	@echo ""
-	@echo "Логи ошибок:"
-	$(DOCKER_COMPOSE) logs --tail=50 backend | grep ERROR || echo "Ошибок не найдено"
-
-# Команды для webhook сервера
-webhook-test: ## Тестирование webhook сервера
-	@echo "$(GREEN)Тестирование webhook сервера...$(NC)"
-	$(PYTHON) scripts/test_webhook_server.py
-
-webhook-health: ## Проверка здоровья webhook сервера
-	@echo "$(GREEN)Проверка здоровья webhook сервера...$(NC)"
-	curl -s http://localhost:8000/api/webhooks/amo/health | $(PYTHON) -m json.tool
-
-webhook-status: ## Статус webhook сервера
-	@echo "$(GREEN)Статус webhook сервера...$(NC)"
-	curl -s http://localhost:8000/api/webhooks/amo/test | $(PYTHON) -m json.tool
-
-webhook-logs: ## Логи webhook сервера
-	@echo "$(GREEN)Логи webhook сервера:$(NC)"
-	$(DOCKER_COMPOSE) logs -f backend | grep -i webhook
-
-webhook-simulate: ## Симуляция webhook от amoCRM
-	@echo "$(GREEN)Симуляция webhook от amoCRM...$(NC)"
-	curl -X POST http://localhost:8000/api/webhooks/amo \
-		-H "Content-Type: application/json" \
-		-H "X-Client-UUID: test-uuid" \
-		-H "X-Signature: test-signature" \
-		-H "X-Account-ID: test-account" \
-		-d '{"leads": {"add": [{"id": 99999, "name": "Тестовый лид", "status_id": 1}]}}' | $(PYTHON) -m json.tool
-
-webhook-setup: ## Настройка webhook сервера
-	@echo "$(GREEN)Настройка webhook сервера...$(NC)"
-	@echo "1. Проверьте конфигурацию в .env файле"
-	@echo "2. Настройте webhook в amoCRM"
-	@echo "3. Создайте кастомные поля"
-	@echo "4. Запустите: make webhook-test"
-	@echo "5. Проверьте логи: make webhook-logs"
-
-protect:
-	bash ops/protect_branches.sh
+restore-staging: ## Восстановить staging БД из резервной копии
+	@echo "$(RED)Восстановление staging БД из резервной копии...$(NC)"
+	@read -p "Введите имя файла резервной копии: " file; \
+	docker exec -T asia-db-staging psql -U asia asia_crm_staging < $$file
 

@@ -1,0 +1,81 @@
+name: Rollback Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to rollback'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+        - staging
+        - production
+      version:
+        description: 'Version to rollback to (leave empty for previous version)'
+        required: false
+        type: string
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'latest'
+
+    - name: Configure kubectl
+      run: |
+        echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > kubeconfig.yaml
+        export KUBECONFIG=kubeconfig.yaml
+
+    - name: Get current deployment status
+      run: |
+        export NAMESPACE=${{ github.event.inputs.environment }}
+        kubectl get deployments -n $NAMESPACE
+        kubectl rollout history deployment/backend -n $NAMESPACE
+        kubectl rollout history deployment/frontend -n $NAMESPACE
+
+    - name: Rollback deployment
+      run: |
+        export NAMESPACE=${{ github.event.inputs.environment }}
+        export VERSION=${{ github.event.inputs.version }}
+        
+        if [ -z "$VERSION" ]; then
+          echo "Rolling back to previous version..."
+          kubectl rollout undo deployment/backend -n $NAMESPACE
+          kubectl rollout undo deployment/frontend -n $NAMESPACE
+        else
+          echo "Rolling back to version: $VERSION"
+          # Здесь можно добавить логику для отката к конкретной версии
+          # kubectl set image deployment/backend backend=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend:$VERSION -n $NAMESPACE
+          # kubectl set image deployment/frontend frontend=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend:$VERSION -n $NAMESPACE
+        fi
+
+    - name: Wait for rollback completion
+      run: |
+        export NAMESPACE=${{ github.event.inputs.environment }}
+        kubectl rollout status deployment/backend -n $NAMESPACE --timeout=300s
+        kubectl rollout status deployment/frontend -n $NAMESPACE --timeout=300s
+
+    - name: Verify rollback
+      run: |
+        export NAMESPACE=${{ github.event.inputs.environment }}
+        kubectl get pods -n $NAMESPACE
+        kubectl get services -n $NAMESPACE
+
+    - name: Notify rollback status
+      if: always()
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        channel: '#deployments'
+        webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+      env:
+        SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}

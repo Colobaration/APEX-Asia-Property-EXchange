@@ -1,0 +1,92 @@
+version: "3.9"
+
+services:
+  backend:
+    image: ${REGISTRY:-ghcr.io}/${IMAGE_NAME:-your-repo}-backend:${TAG:-latest}
+    container_name: asia-backend-staging
+    ports:
+      - "8001:8000"
+    env_file:
+      - .env.staging
+    environment:
+      - ENVIRONMENT=staging
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./logs:/app/logs
+    depends_on:
+      - db
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  frontend:
+    image: ${REGISTRY:-ghcr.io}/${IMAGE_NAME:-your-repo}-frontend:${TAG:-latest}
+    container_name: asia-frontend-staging
+    ports:
+      - "3001:3000"
+    env_file:
+      - .env.staging
+    environment:
+      - NODE_ENV=staging
+      - NEXT_PUBLIC_API_URL=https://api.staging.${DOMAIN:-yourdomain.com}
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  db:
+    image: postgres:15
+    container_name: asia-db-staging
+    environment:
+      POSTGRES_USER: ${DB_USER:-asia}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-asia}
+      POSTGRES_DB: ${DB_NAME:-asia_crm_staging}
+    volumes:
+      - pgdata_staging:/var/lib/postgresql/data
+      - ./backups:/backups
+    ports:
+      - "5433:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-asia} -d ${DB_NAME:-asia_crm_staging}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  nginx:
+    image: nginx:alpine
+    container_name: asia-nginx-staging
+    ports:
+      - "8080:80"
+      - "8443:443"
+    volumes:
+      - ./nginx/nginx-staging.conf:/etc/nginx/nginx.conf
+      - ./nginx/ssl:/etc/nginx/ssl
+      - ./logs/nginx:/var/log/nginx
+    depends_on:
+      - backend
+      - frontend
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: asia-redis-staging
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data_staging:/data
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+
+volumes:
+  pgdata_staging:
+  redis_data_staging:

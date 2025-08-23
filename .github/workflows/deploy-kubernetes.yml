@@ -1,0 +1,80 @@
+name: Deploy to Kubernetes
+
+on:
+  workflow_run:
+    workflows: ["CI/CD Pipeline"]
+    types:
+      - completed
+    branches: [ main, develop ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    
+    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'latest'
+
+    - name: Configure kubectl
+      run: |
+        echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > kubeconfig.yaml
+        export KUBECONFIG=kubeconfig.yaml
+
+    - name: Deploy to Kubernetes
+      run: |
+        # Обновление образов в Kubernetes манифестах
+        export IMAGE_TAG=${{ github.sha }}
+        export NAMESPACE=${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
+        
+        # Применение манифестов
+        kubectl apply -f k8s/namespace.yaml
+        kubectl apply -f k8s/configmap.yaml
+        kubectl apply -f k8s/secrets.yaml
+        
+        # Деплой backend
+        envsubst < k8s/backend-deployment.yaml | kubectl apply -f -
+        kubectl apply -f k8s/backend-service.yaml
+        
+        # Деплой frontend
+        envsubst < k8s/frontend-deployment.yaml | kubectl apply -f -
+        kubectl apply -f k8s/frontend-service.yaml
+        
+        # Деплой ingress
+        kubectl apply -f k8s/ingress.yaml
+        
+        # Проверка статуса деплоя
+        kubectl rollout status deployment/backend -n $NAMESPACE
+        kubectl rollout status deployment/frontend -n $NAMESPACE
+
+    - name: Health check
+      run: |
+        export NAMESPACE=${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
+        
+        # Ожидание готовности сервисов
+        kubectl wait --for=condition=ready pod -l app=backend -n $NAMESPACE --timeout=300s
+        kubectl wait --for=condition=ready pod -l app=frontend -n $NAMESPACE --timeout=300s
+        
+        # Проверка здоровья endpoints
+        kubectl get endpoints -n $NAMESPACE
+
+    - name: Notify deployment status
+      if: always()
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        channel: '#deployments'
+        webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+      env:
+        SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}

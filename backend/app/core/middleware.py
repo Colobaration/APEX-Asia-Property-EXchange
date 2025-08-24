@@ -105,9 +105,19 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             # Логируем ответ (только для не-health check запросов или при ошибках)
             process_time = time.time() - start_time
             
-            if not is_health_check or response.status_code >= 400:
+            if not is_health_check:
                 logger.info(
                     f"Request completed",
+                    extra={
+                        "request_id": request_id,
+                        "status_code": response.status_code,
+                        "process_time": process_time
+                    }
+                )
+            elif response.status_code >= 400:
+                # Логируем ошибки health check как WARNING
+                logger.warning(
+                    f"Health check failed",
                     extra={
                         "request_id": request_id,
                         "status_code": response.status_code,

@@ -2,7 +2,9 @@ version: "3.9"
 
 services:
   backend:
-    build: ./backend
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
     container_name: asia-backend-staging
     ports:
       - "${BACKEND_PORT:-8001}:8000"
@@ -11,21 +13,29 @@ services:
     environment:
       - ENVIRONMENT=staging
       - PYTHONPATH=/app
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: unless-stopped
     volumes:
       - ./backend/logs:/app/logs
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.backend.rule=Host(`api.staging.apex-asia.com`)"
+      - "traefik.http.services.backend.loadbalancer.server.port=8000"
+      - "portainer.stack.name=apex-staging"
 
   db:
-    image: postgres:15
+    image: postgres:15-alpine
     container_name: asia-db-staging
     env_file:
       - .env.staging
@@ -33,8 +43,10 @@ services:
       POSTGRES_USER: ${DB_USER:-asia}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-asia}
       POSTGRES_DB: ${DB_NAME:-asia_crm_staging}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
     volumes:
       - pgdata_staging:/var/lib/postgresql/data
+      - ./backend/alembic:/docker-entrypoint-initdb.d
     ports:
       - "${DB_PORT:-5433}:5432"
     restart: unless-stopped
@@ -43,6 +55,9 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 30s
+    labels:
+      - "portainer.stack.name=apex-staging"
 
   redis:
     image: redis:7-alpine
@@ -52,24 +67,90 @@ services:
     volumes:
       - redis_data_staging:/data
     restart: unless-stopped
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-}
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-} --maxmemory 256mb --maxmemory-policy allkeys-lru
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 30s
+    labels:
+      - "portainer.stack.name=apex-staging"
 
   nginx:
     image: nginx:alpine
     container_name: asia-nginx-staging
     ports:
       - "${NGINX_PORT:-80}:80"
+      - "${NGINX_SSL_PORT:-443}:443"
     volumes:
       - ./nginx/nginx-staging.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.nginx.rule=Host(`staging.apex-asia.com`)"
+      - "traefik.http.services.nginx.loadbalancer.server.port=80"
+      - "portainer.stack.name=apex-staging"
+
+  # Мониторинг и логи
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: asia-prometheus-staging
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    restart: unless-stopped
+    labels:
+      - "portainer.stack.name=apex-staging"
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: asia-grafana-staging
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    labels:
+      - "portainer.stack.name=apex-staging"
 
 volumes:
   pgdata_staging:
+    driver: local
   redis_data_staging:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+networks:
+  default:
+    name: apex-staging-network
+    driver: bridge

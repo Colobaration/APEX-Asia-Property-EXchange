@@ -7,15 +7,33 @@ services:
       dockerfile: Dockerfile
     container_name: asia-backend-staging
     ports:
-      - "${BACKEND_PORT:-8001}:8000"
-    env_file:
-      - .env.staging
+      - "8001:8000"
     environment:
       - ENVIRONMENT=staging
       - PYTHONPATH=/app
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_LEVEL=INFO
       - INIT_DB=false
       - RUN_MIGRATIONS=false
+      - DB_URL=postgresql://asia:asia@db:5432/asia_crm_staging
+      - REDIS_URL=redis://redis:6379
+      - SECRET_KEY=your-staging-secret-key-change-in-production
+      - JWT_SECRET=your-staging-jwt-secret-change-in-production
+      - ALLOWED_HOSTS_RAW=localhost,127.0.0.1,*.apex-asia.com
+      - CORS_ORIGINS_RAW=http://localhost:3000,https://staging.apex-asia.com
+      - AMOCRM_CLIENT_ID=
+      - AMOCRM_CLIENT_SECRET=
+      - AMOCRM_REDIRECT_URI=http://api.staging.apex-asia.com/auth/amocrm/callback
+      - AMOCRM_SUBDOMAIN=
+      - TELEGRAM_BOT_TOKEN=
+      - TELEGRAM_CHAT_ID=
+      - WHATSAPP_API_URL=
+      - WHATSAPP_API_KEY=
+      - EMAIL_SMTP_HOST=
+      - EMAIL_SMTP_PORT=587
+      - EMAIL_USERNAME=
+      - EMAIL_PASSWORD=
+      - EMAIL_FROM=
+      - LOG_FILE=app.log
     depends_on:
       - db
       - redis
@@ -38,18 +56,16 @@ services:
   db:
     image: postgres:15-alpine
     container_name: asia-db-staging
-    env_file:
-      - .env.staging
     environment:
-      POSTGRES_USER: ${DB_USER:-asia}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-asia}
-      POSTGRES_DB: ${DB_NAME:-asia_crm_staging}
+      POSTGRES_USER: asia
+      POSTGRES_PASSWORD: asia
+      POSTGRES_DB: asia_crm_staging
       POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
     volumes:
       - pgdata_staging:/var/lib/postgresql/data
       - ./backend/alembic:/docker-entrypoint-initdb.d
     ports:
-      - "${DB_PORT:-5433}:5432"
+      - "5433:5432"
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-asia} -d ${DB_NAME:-asia_crm_staging}"]
@@ -64,7 +80,7 @@ services:
     image: redis:7-alpine
     container_name: asia-redis-staging
     ports:
-      - "${REDIS_PORT:-6380}:6379"
+      - "6380:6379"
     volumes:
       - redis_data_staging:/data
     restart: unless-stopped
@@ -84,9 +100,7 @@ services:
       dockerfile: Dockerfile
     container_name: asia-frontend-staging
     ports:
-      - "${FRONTEND_PORT:-3000}:3000"
-    env_file:
-      - .env.staging
+      - "3000:3000"
     environment:
       - ENVIRONMENT=staging
       - NEXT_PUBLIC_API_URL=http://api.staging.apex-asia.com
@@ -109,8 +123,8 @@ services:
     image: nginx:alpine
     container_name: asia-nginx-staging
     ports:
-      - "${NGINX_PORT:-80}:80"
-      - "${NGINX_SSL_PORT:-443}:443"
+      - "80:80"
+      - "443:443"
     volumes:
       - ./nginx/nginx-staging.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/ssl:/etc/nginx/ssl:ro

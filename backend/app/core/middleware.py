@@ -81,33 +81,39 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         request_id = str(uuid.uuid4())
         request.state.request_id = request_id
         
-        # Логируем начало запроса
+        # Проверяем, является ли это health check
+        is_health_check = request.url.path == "/health"
+        
+        # Логируем начало запроса (только для не-health check запросов)
         start_time = time.time()
         
-        logger.info(
-            f"Request started",
-            extra={
-                "request_id": request_id,
-                "method": request.method,
-                "url": str(request.url),
-                "client_ip": request.client.host if request.client else "unknown",
-                "user_agent": request.headers.get("user-agent", "")
-            }
-        )
+        if not is_health_check:
+            logger.info(
+                f"Request started",
+                extra={
+                    "request_id": request_id,
+                    "method": request.method,
+                    "url": str(request.url),
+                    "client_ip": request.client.host if request.client else "unknown",
+                    "user_agent": request.headers.get("user-agent", "")
+                }
+            )
 
         try:
             response = await call_next(request)
             
-            # Логируем успешный ответ
+            # Логируем ответ (только для не-health check запросов или при ошибках)
             process_time = time.time() - start_time
-            logger.info(
-                f"Request completed",
-                extra={
-                    "request_id": request_id,
-                    "status_code": response.status_code,
-                    "process_time": process_time
-                }
-            )
+            
+            if not is_health_check or response.status_code >= 400:
+                logger.info(
+                    f"Request completed",
+                    extra={
+                        "request_id": request_id,
+                        "status_code": response.status_code,
+                        "process_time": process_time
+                    }
+                )
             
             # Добавляем request ID в заголовки
             response.headers["X-Request-ID"] = request_id
@@ -115,14 +121,15 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             return response
             
         except Exception as e:
-            # Логируем ошибку
+            # Логируем ошибку (всегда, включая health checks)
             process_time = time.time() - start_time
             logger.error(
                 f"Request failed: {str(e)}",
                 extra={
                     "request_id": request_id,
                     "error": str(e),
-                    "process_time": process_time
+                    "process_time": process_time,
+                    "is_health_check": is_health_check
                 }
             )
             raise

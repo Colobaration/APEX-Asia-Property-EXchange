@@ -1,0 +1,64 @@
+version: "3.9"
+
+services:
+  backend:
+    build: ./backend
+    container_name: asia-backend-local
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=development
+      - LOG_LEVEL=INFO
+      - DATABASE_URL=postgresql://asia:asia@db:5432/asia_crm
+      - REDIS_URL=redis://redis:6379
+      - SECRET_KEY=your-local-secret-key
+    volumes:
+      - ./backend:/app
+      - ./logs:/app/logs
+    depends_on:
+      - db
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    container_name: asia-frontend-local
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_ENVIRONMENT=development
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - ./logs:/app/logs
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  db:
+    image: postgres:15
+    container_name: asia-db-local
+    environment:
+      POSTGRES_USER: asia
+      POSTGRES_PASSWORD: asia
+      POSTGRES_DB: asia_crm
+    volumes:
+      - pgdata_local:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: asia-redis-local
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data_local:/data
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+
+volumes:
+  pgdata_local:
+  redis_data_local:

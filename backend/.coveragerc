@@ -1,0 +1,93 @@
+[run]
+# Конфигурация coverage для APEX
+
+# Источники для измерения coverage
+source = app
+
+# Включить измерение coverage для веток
+branch = True
+
+# Исключить файлы из coverage
+omit = 
+    */tests/*
+    */migrations/*
+    */alembic/*
+    */__pycache__/*
+    */venv/*
+    */env/*
+    */node_modules/*
+    */coverage/*
+    */htmlcov/*
+    */build/*
+    */dist/*
+    */__init__.py
+    */main.py
+    */wsgi.py
+    */asgi.py
+
+# Включить параллельное выполнение
+parallel = True
+
+# Настройки для относительных путей
+relative_files = True
+
+# Настройки для кэширования
+data_file = .coverage
+
+[report]
+# Настройки отчетов
+
+# Исключить строки из отчетов
+exclude_lines =
+    # Прагма для исключения
+    pragma: no cover
+    
+    # Докстринги
+    def __repr__
+    if self.debug:
+    if settings.DEBUG
+    raise AssertionError
+    raise NotImplementedError
+    
+    # Импорты
+    import *
+    from .* import *
+    
+    # Логирование
+    logger\.(debug|info|warning|error|critical)
+    
+    # Типы
+    if TYPE_CHECKING:
+    
+    # Тесты
+    if __name__ == .__main__.:
+    
+    # Исключения
+    except ImportError:
+    except OSError:
+    
+    # Пустые строки
+    pass
+    raise
+    return
+
+# Показать отсутствующие строки
+show_missing = True
+
+# Точность до 2 знаков после запятой
+precision = 2
+
+[html]
+# Настройки HTML отчетов
+
+# Директория для отчетов
+directory = htmlcov
+
+# Заголовок отчета
+title = APEX Coverage Report
+
+[xml]
+# Настройки XML отчетов
+
+# Выходной файл
+output = coverage.xml

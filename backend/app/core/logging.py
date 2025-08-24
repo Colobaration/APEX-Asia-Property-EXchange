@@ -1,55 +1,89 @@
 import logging
-from loguru import logger
+import logging.handlers
+import sys
+from pathlib import Path
 from app.core.config import settings
 
-# Настройка логирования
 def setup_logging():
-    """Настройка системы логирования"""
+    """Настройка логирования для приложения"""
     
-    # Удаление стандартного обработчика
-    logger.remove()
+    # Создаем директорию для логов если её нет
+    log_dir = Path("logs")
+    try:
+        log_dir.mkdir(exist_ok=True)
+    except PermissionError:
+        # Если нет прав на создание директории, используем только консольное логирование
+        print("⚠️  Предупреждение: Нет прав на создание директории логов. Используется только консольное логирование.")
     
-    # Добавление обработчика для консоли
-    logger.add(
-        "logs/app.log",
-        rotation="10 MB",
-        retention="30 days",
-        level=settings.log_level,
-        format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {name}:{function}:{line} | {message}",
-        compression="zip"
+    # Настраиваем форматтер
+    formatter = logging.Formatter(
+        fmt=settings.log_format,
+        datefmt="%Y-%m-%d %H:%M:%S"
     )
     
-    # Добавление обработчика для ошибок
-    logger.add(
-        "logs/error.log",
-        rotation="10 MB",
-        retention="90 days",
-        level="ERROR",
-        format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {name}:{function}:{line} | {message}",
-        compression="zip"
-    )
+    # Настраиваем уровень логирования
+    log_level = getattr(logging, settings.log_level.upper(), logging.INFO)
     
-    # Перехват стандартного logging
-    class InterceptHandler(logging.Handler):
-        def emit(self, record):
+    # Настраиваем корневой логгер
+    root_logger = logging.getLogger()
+    root_logger.setLevel(log_level)
+    
+    # Очищаем существующие обработчики
+    root_logger.handlers.clear()
+    
+    # Консольный обработчик
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(log_level)
+    console_handler.setFormatter(formatter)
+    root_logger.addHandler(console_handler)
+    
+    # Файловый обработчик (если указан файл логов)
+    if settings.log_file:
+        try:
+            # Убираем 'logs/' из пути, если он уже есть
+            log_file_path = settings.log_file
+            if log_file_path.startswith('logs/'):
+                log_file_path = log_file_path[6:]  # Убираем 'logs/'
+            
+            # Проверяем, можем ли мы создать файл
+            log_file_full_path = log_dir / log_file_path
+            
+            # Пытаемся создать файл для проверки прав
             try:
-                level = logger.level(record.levelname).name
-            except ValueError:
-                level = record.levelno
+                with open(log_file_full_path, 'a') as f:
+                    pass
+            except PermissionError:
+                raise PermissionError(f"Нет прав на запись в файл: {log_file_full_path}")
             
-            frame, depth = logging.currentframe(), 2
-            while frame.f_code.co_filename == logging.__file__:
-                frame = frame.f_back
-                depth += 1
-            
-            logger.opt(depth=depth, exception=record.exc_info).log(
-                level, record.getMessage()
+            file_handler = logging.handlers.RotatingFileHandler(
+                log_file_full_path,
+                maxBytes=10*1024*1024,  # 10MB
+                backupCount=5,
+                encoding='utf-8'
             )
+            file_handler.setLevel(log_level)
+            file_handler.setFormatter(formatter)
+            root_logger.addHandler(file_handler)
+            print(f"✅ Файловое логирование настроено: {log_file_full_path}")
+        except (PermissionError, OSError) as e:
+            print(f"⚠️  Предупреждение: Не удалось настроить файловое логирование: {e}")
+            print("📝 Используется только консольное логирование")
     
-    # Настройка стандартного logging
-    logging.basicConfig(handlers=[InterceptHandler()], level=0, force=True)
+    # Настраиваем логи для внешних библиотек
+    logging.getLogger("uvicorn").setLevel(logging.INFO)
+    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+    logging.getLogger("sqlalchemy").setLevel(logging.WARNING)
+    logging.getLogger("alembic").setLevel(logging.INFO)
     
-    return logger
+    # Логируем информацию о настройке
+    logger = logging.getLogger(__name__)
+    logger.info(f"Логирование настроено. Уровень: {settings.log_level}")
+    logger.info(f"Окружение: {settings.environment}")
+    logger.info(f"Debug режим: {settings.debug}")
 
-# Инициализация логгера
-setup_logging()
+def get_logger(name: str) -> logging.Logger:
+    """Получить логгер с указанным именем"""
+    return logging.getLogger(name)
+
+# Создаем глобальный логгер для импорта
+logger = logging.getLogger(__name__)

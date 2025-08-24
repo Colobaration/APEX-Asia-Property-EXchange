@@ -1,29 +1,46 @@
-FROM node:18-alpine
+FROM node:18-alpine AS base
 
+# Установка зависимостей только когда нужно
+FROM base AS deps
+RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 # Копирование package.json и package-lock.json
 COPY package*.json ./
+RUN npm ci
 
-# Установка зависимостей
-RUN npm ci --only=production
-
-# Копирование исходного кода
+# Сборка приложения
+FROM base AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # Сборка приложения
 RUN npm run build
 
-# Создание пользователя для безопасности
-RUN addgroup -g 1001 -S nodejs
-RUN adduser -S nextjs -u 1001
+# Продакшн образ
+FROM base AS runner
+WORKDIR /app
 
-# Изменение владельца файлов
-RUN chown -R nextjs:nodejs /app
+ENV NODE_ENV production
+
+# Установка curl для healthcheck
+RUN apk add --no-cache curl
+
+# Создание пользователя для безопасности
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
+
+# Копирование собранного приложения
+COPY --from=builder /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
 USER nextjs
 
-# Экспорт порта
 EXPOSE 3000
 
-# Команда запуска
-CMD ["npm", "start"]
+ENV PORT 3000
+ENV HOSTNAME "0.0.0.0"
+
+CMD ["node", "server.js"]

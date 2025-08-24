@@ -1,6 +1,7 @@
 version: "3.9"
 
 services:
+  # API Backend сервер
   backend:
     build: ./backend
     container_name: asia-backend
@@ -8,12 +9,24 @@ services:
       - "8000:8000"
     env_file:
       - .env
+    environment:
+      - ENVIRONMENT=development
+      - PYTHONPATH=/app
     volumes:
       - ./backend:/app
+      - ./backend/logs:/app/logs
     depends_on:
       - db
+      - redis
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
+  # Frontend приложение
   frontend:
     build: ./frontend
     container_name: asia-frontend
@@ -21,24 +34,59 @@ services:
       - "3000:3000"
     env_file:
       - .env
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_ENVIRONMENT=development
     volumes:
       - ./frontend:/app
       - /app/node_modules
+      - ./logs:/app/logs
+    depends_on:
+      - backend
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
+  # База данных PostgreSQL
   db:
     image: postgres:15
     container_name: asia-db
     environment:
-      POSTGRES_USER: asia
-      POSTGRES_PASSWORD: asia
-      POSTGRES_DB: asia_crm
+      POSTGRES_USER: ${DB_USER:-asia}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-asia}
+      POSTGRES_DB: ${DB_NAME:-asia_crm}
     volumes:
       - pgdata:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "${DB_PORT:-5432}:5432"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-asia} -d ${DB_NAME:-asia_crm}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
+  # Redis кэш
+  redis:
+    image: redis:7-alpine
+    container_name: asia-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-}
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Metabase для аналитики
   metabase:
     image: metabase/metabase:latest
     container_name: asia-metabase
@@ -47,11 +95,39 @@ services:
     environment:
       MB_DB_FILE: /metabase-data/metabase.db
       MB_DB_TYPE: h2
+      MB_DB_DBNAME: metabase
+      MB_DB_USER: metabase
+      MB_DB_PASS: metabase
     volumes:
       - ./analytics/dashboards:/metabase-data
     restart: unless-stopped
     depends_on:
       - db
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 60s
+      timeout: 30s
+      retries: 3
+      start_period: 120s
+
+  # Nginx для проксирования
+  nginx:
+    image: nginx:alpine
+    container_name: asia-nginx
+    ports:
+      - "${NGINX_PORT:-80}:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - frontend
+      - backend
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 volumes:
   pgdata:
+  redis_data:

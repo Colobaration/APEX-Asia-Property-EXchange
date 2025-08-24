@@ -84,14 +84,15 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         # Проверяем, является ли это health check
         is_health_check = request.url.path == "/health"
         
-        # Логируем детали всех запросов
-        logger.info(
-            f"Request details - Method: {request.method}, Path: {request.url.path}, "
-            f"Client IP: {request.client.host if request.client else 'unknown'}, "
-            f"User-Agent: {request.headers.get('user-agent', 'N/A')}, "
-            f"Host: {request.headers.get('host', 'N/A')}, "
-            f"Is Health Check: {is_health_check}"
-        )
+        # Логируем детали всех запросов (кроме health checks)
+        if not is_health_check:
+            logger.info(
+                f"Request details - Method: {request.method}, Path: {request.url.path}, "
+                f"Client IP: {request.client.host if request.client else 'unknown'}, "
+                f"User-Agent: {request.headers.get('user-agent', 'N/A')}, "
+                f"Host: {request.headers.get('host', 'N/A')}, "
+                f"Is Health Check: {is_health_check}"
+            )
         
         # Логируем начало запроса (только для не-health check запросов)
         start_time = time.time()
@@ -123,10 +124,10 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                         "process_time": process_time
                     }
                 )
-            else:
-                # Логируем health check как INFO
-                logger.info(
-                    f"Health check completed",
+            elif response.status_code >= 400:
+                # Логируем ошибки health check как WARNING
+                logger.warning(
+                    f"Health check failed",
                     extra={
                         "request_id": request_id,
                         "status_code": response.status_code,

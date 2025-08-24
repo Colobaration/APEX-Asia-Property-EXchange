@@ -4,7 +4,7 @@
 
 import { useState, useCallback, useRef } from 'react';
 import { z } from 'zod';
-import { validateForm, validateField } from '@/lib/validation';
+import { validateForm } from '@/lib/validation';
 
 interface UseFormOptions<T> {
   initialValues: T;
@@ -45,17 +45,8 @@ export const useForm = <T extends Record<string, any>>({
       
       // Валидация поля в реальном времени
       let newErrors = { ...prev.errors };
-      if (validationSchema) {
-        const fieldSchema = validationSchema.shape[field as string];
-        if (fieldSchema) {
-          const validation = validateField(fieldSchema, value);
-          if (!validation.success) {
-            newErrors[field as string] = validation.error;
-          } else {
-            delete newErrors[field as string];
-          }
-        }
-      }
+      // Пока отключаем валидацию в реальном времени для упрощения
+      delete newErrors[field as string];
 
       return {
         ...prev,

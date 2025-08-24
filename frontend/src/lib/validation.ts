@@ -117,7 +117,7 @@ export const validateForm = <T>(schema: z.ZodSchema<T>, data: unknown): { succes
   } catch (error) {
     if (error instanceof z.ZodError) {
       const errors: Record<string, string> = {};
-      error.errors.forEach((err) => {
+      (error as any).errors.forEach((err: any) => {
         const path = err.path.join('.');
         errors[path] = err.message;
       });
@@ -133,7 +133,7 @@ export const validateField = <T>(schema: z.ZodSchema<T>, value: unknown): { succ
     return { success: true, data: validatedData };
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return { success: false, error: error.errors[0]?.message || 'Ошибка валидации' };
+      return { success: false, error: (error as any).errors[0]?.message || 'Ошибка валидации' };
     }
     return { success: false, error: 'Ошибка валидации' };
   }

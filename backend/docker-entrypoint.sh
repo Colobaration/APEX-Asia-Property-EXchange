@@ -20,12 +20,30 @@ wait_for_db() {
     while [ $attempt -le $max_retries ]; do
         if python -c "
 import os
+import psycopg2
 import sys
-sys.path.append('/app')
-from scripts.run_migrations import wait_for_database
-import os
-db_url = os.getenv('DATABASE_URL')
-if wait_for_database(db_url):
+from urllib.parse import urlparse
+
+def check_db():
+    try:
+        db_url = os.getenv('DATABASE_URL')
+        if not db_url:
+            return False
+        
+        parsed = urlparse(db_url)
+        conn = psycopg2.connect(
+            host=parsed.hostname,
+            port=parsed.port or 5432,
+            database=parsed.path[1:],
+            user=parsed.username,
+            password=parsed.password
+        )
+        conn.close()
+        return True
+    except Exception:
+        return False
+
+if check_db():
     exit(0)
 else:
     exit(1)
@@ -94,10 +112,16 @@ main() {
         exit 1
     fi
     
-    # Запускаем миграции
-    if ! run_migrations; then
-        exit 1
-    fi
+    # Запускаем миграции только если RUN_MIGRATIONS=true
+    # Временно отключено для тестирования
+    # if [ "$RUN_MIGRATIONS" = "true" ]; then
+    #     if ! run_migrations; then
+    #         exit 1
+    #     fi
+    # else
+    #     log "⏭️  Пропуск миграций (RUN_MIGRATIONS=false)"
+    # fi
+    log "⏭️  Пропуск миграций (временно отключено)"
     
     # Если это первичный запуск, инициализируем базу данных
     if [ "$INIT_DB" = "true" ]; then

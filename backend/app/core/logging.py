@@ -35,8 +35,13 @@ def setup_logging():
     
     # Файловый обработчик (если указан файл логов)
     if settings.log_file:
+        # Убираем 'logs/' из пути, если он уже есть
+        log_file_path = settings.log_file
+        if log_file_path.startswith('logs/'):
+            log_file_path = log_file_path[6:]  # Убираем 'logs/'
+        
         file_handler = logging.handlers.RotatingFileHandler(
-            log_dir / settings.log_file,
+            log_dir / log_file_path,
             maxBytes=10*1024*1024,  # 10MB
             backupCount=5,
             encoding='utf-8'

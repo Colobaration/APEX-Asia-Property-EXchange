@@ -1,6 +1,8 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import Optional, List
+from pydantic import field_validator
+from typing import Optional, List, Union
 import os
+import json
 
 class Settings(BaseSettings):
     # Основные настройки
@@ -36,8 +38,22 @@ class Settings(BaseSettings):
     jwt_expire_minutes: int = 30
     
     # CORS
-    allowed_hosts: List[str] = ["localhost", "127.0.0.1", "*.apex-asia.com"]
-    cors_origins: List[str] = ["http://localhost:3000", "https://staging.apex-asia.com"]
+    allowed_hosts_raw: str = "*"  # Сырая строка из переменной окружения
+    cors_origins_raw: str = "*"   # Сырая строка из переменной окружения
+    
+    @property
+    def allowed_hosts(self) -> List[str]:
+        """Возвращает список разрешенных хостов"""
+        if self.allowed_hosts_raw == "*":
+            return ["*"]
+        return [host.strip() for host in self.allowed_hosts_raw.split(",") if host.strip()]
+    
+    @property
+    def cors_origins(self) -> List[str]:
+        """Возвращает список разрешенных CORS origins"""
+        if self.cors_origins_raw == "*":
+            return ["*"]
+        return [origin.strip() for origin in self.cors_origins_raw.split(",") if origin.strip()]
     
     # Email настройки
     smtp_server: Optional[str] = None
@@ -83,7 +99,7 @@ class Settings(BaseSettings):
     enable_telegram: bool = False
     
     model_config = SettingsConfigDict(
-        env_file=".env.staging" if os.getenv("ENVIRONMENT") == "staging" else ".env",
+        # env_file=".env.staging" if os.getenv("ENVIRONMENT") == "staging" else ".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore"

@@ -23,7 +23,26 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         # Проверка trusted hosts
         if settings.environment != "development":
             host = request.headers.get("host", "")
-            if host not in settings.allowed_hosts:
+            # Убираем порт из host для проверки
+            host_without_port = host.split(":")[0] if ":" in host else host
+            
+            # Проверяем точное совпадение или wildcard
+            allowed = False
+            for allowed_host in settings.allowed_hosts:
+                if allowed_host == "*":
+                    allowed = True
+                    break
+                elif allowed_host.startswith("*."):
+                    # Проверяем wildcard домен
+                    domain = allowed_host[2:]  # Убираем "*."
+                    if host_without_port.endswith(domain):
+                        allowed = True
+                        break
+                elif allowed_host == host_without_port:
+                    allowed = True
+                    break
+            
+            if not allowed:
                 return JSONResponse(
                     status_code=403,
                     content={"detail": "Host not allowed"}

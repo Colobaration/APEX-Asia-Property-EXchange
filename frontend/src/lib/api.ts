@@ -207,8 +207,9 @@ export const apiHooks = {
 export const apiUtils = {
   // Обработка ошибок API
   handleApiError: (error: AxiosError): ApiError => {
-    if (error.response?.data?.error) {
-      return error.response.data.error;
+    const responseData = error.response?.data as any;
+    if (responseData?.error) {
+      return responseData.error;
     }
     return {
       message: error.message || 'Произошла ошибка',

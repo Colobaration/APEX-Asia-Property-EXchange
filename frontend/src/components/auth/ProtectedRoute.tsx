@@ -48,10 +48,10 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   // Проверяем права доступа
   if (requiredPermissions.length > 0 && user) {
-    const hasPermission = requiredPermissions.some(permission => {
+    const hasPermission = requiredPermissions.some(() => {
       // Здесь должна быть логика проверки прав пользователя
       // Пока просто проверяем, является ли пользователь суперпользователем
-      return user.is_superuser || user.permissions?.includes(permission);
+      return user.is_superuser;
     });
 
     if (!hasPermission) {

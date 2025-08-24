@@ -11,7 +11,7 @@ services:
     environment:
       - ENVIRONMENT=staging
       - PYTHONPATH=/app
-      - LOG_LEVEL=WARNING
+      - LOG_LEVEL=INFO
       - INIT_DB=false
       - RUN_MIGRATIONS=false
       - DATABASE_URL=postgresql://asia:asia@db:5432/asia_crm_staging

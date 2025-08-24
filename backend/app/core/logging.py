@@ -60,3 +60,6 @@ def setup_logging():
 def get_logger(name: str) -> logging.Logger:
     """Получить логгер с указанным именем"""
     return logging.getLogger(name)
+
+# Создаем глобальный логгер для импорта
+logger = logging.getLogger(__name__)

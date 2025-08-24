@@ -17,7 +17,8 @@ class Settings(BaseSettings):
     amocrm_webhook_secret: Optional[str] = None
     
     # База данных
-    db_url: str = "postgresql://asia:asia@db:5432/asia_crm"
+    db_url: str = "postgresql://asia:asia@db:5432/asia_crm_staging"
+    database_url: Optional[str] = None
     db_pool_size: int = 10
     db_max_overflow: int = 20
     
@@ -87,5 +88,11 @@ class Settings(BaseSettings):
         case_sensitive=False,
         extra="ignore"
     )
+    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # Используем DATABASE_URL если он указан
+        if self.database_url:
+            self.db_url = self.database_url
 
 settings = Settings()

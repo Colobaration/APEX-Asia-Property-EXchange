@@ -1,0 +1,180 @@
+[run]
+# Конфигурация coverage для APEX
+
+# Источники для измерения coverage
+source = app
+
+# Включить измерение coverage для веток
+branch = True
+
+# Исключить файлы из coverage
+omit = 
+    */tests/*
+    */migrations/*
+    */alembic/*
+    */__pycache__/*
+    */venv/*
+    */env/*
+    */node_modules/*
+    */coverage/*
+    */htmlcov/*
+    */build/*
+    */dist/*
+    */__init__.py
+    */main.py
+    */wsgi.py
+    */asgi.py
+
+# Включить параллельное выполнение
+parallel = True
+
+# Настройки для относительных путей
+relative_files = True
+
+# Настройки для кэширования
+data_file = .coverage
+
+[report]
+# Настройки отчетов
+
+# Исключить строки из отчетов
+exclude_lines =
+    # Прагма для исключения
+    pragma: no cover
+    
+    # Докстринги
+    def __repr__
+    if self.debug:
+    if settings.DEBUG
+    raise AssertionError
+    raise NotImplementedError
+    
+    # Импорты
+    import *
+    from .* import *
+    
+    # Логирование
+    logger\.(debug|info|warning|error|critical)
+    
+    # Типы
+    if TYPE_CHECKING:
+    
+    # Тесты
+    if __name__ == .__main__.:
+    
+    # Исключения
+    except ImportError:
+    except OSError:
+    
+    # Пустые строки
+    pass
+    raise
+    return
+
+# Показать отсутствующие строки
+show_missing = True
+
+# Показать ветки
+show_branches = True
+
+# Точность до 2 знаков после запятой
+precision = 2
+
+# Сортировка по покрытию
+sort = True
+
+# Пропустить пустые файлы
+skip_empty = True
+
+# Пропустить файлы без покрытия
+skip_covered = False
+
+# Показать частичные ветки
+partial_branches = True
+
+# Показать частичные строки
+partial_lines = True
+
+[html]
+# Настройки HTML отчетов
+
+# Директория для отчетов
+directory = htmlcov
+
+# Заголовок отчета
+title = APEX Coverage Report
+
+# Включить CSS
+extra_css = 
+
+# Включить JavaScript
+extra_js = 
+
+# Показать отсутствующие строки
+show_missing = True
+
+# Показать ветки
+show_branches = True
+
+# Показать частичные ветки
+partial_branches = True
+
+# Показать частичные строки
+partial_lines = True
+
+# Сортировка по покрытию
+sort = True
+
+# Пропустить пустые файлы
+skip_empty = True
+
+# Пропустить файлы без покрытия
+skip_covered = False
+
+[xml]
+# Настройки XML отчетов
+
+# Включить отсутствующие строки
+show_missing = True
+
+# Включить ветки
+show_branches = True
+
+# Включить частичные ветки
+partial_branches = True
+
+# Включить частичные строки
+partial_lines = True
+
+# Сортировка по покрытию
+sort = True
+
+# Пропустить пустые файлы
+skip_empty = True
+
+# Пропустить файлы без покрытия
+skip_covered = False
+
+[lcov]
+# Настройки LCOV отчетов
+
+# Включить отсутствующие строки
+show_missing = True
+
+# Включить ветки
+show_branches = True
+
+# Включить частичные ветки
+partial_branches = True
+
+# Включить частичные строки
+partial_lines = True
+
+# Сортировка по покрытию
+sort = True
+
+# Пропустить пустые файлы
+skip_empty = True
+
+# Пропустить файлы без покрытия
+skip_covered = False

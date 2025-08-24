@@ -1,11 +1,13 @@
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 import logging
 import os
+from datetime import datetime
 from app.core.config import settings
 from app.core.logging import setup_logging
+from app.core.exceptions import APEXException, ValidationError, DatabaseError, ExternalServiceError
+from app.core.middleware import setup_middleware
 
 # Настройка логирования
 setup_logging()
@@ -30,34 +32,120 @@ app = FastAPI(
     version="1.0.0",
     docs_url="/docs" if settings.debug else None,
     redoc_url="/redoc" if settings.debug else None,
-    lifespan=lifespan
+    lifespan=lifespan,
+    openapi_tags=[
+        {
+            "name": "authentication",
+            "description": "Операции с аутентификацией и авторизацией"
+        },
+        {
+            "name": "leads",
+            "description": "Управление лидами и сделками"
+        },
+        {
+            "name": "analytics",
+            "description": "Аналитика и отчеты"
+        },
+        {
+            "name": "notifications",
+            "description": "Система уведомлений"
+        },
+        {
+            "name": "webhooks",
+            "description": "Webhook обработчики"
+        }
+    ]
 )
 
-# Trusted Host middleware
-if not settings.debug:
-    app.add_middleware(
-        TrustedHostMiddleware,
-        allowed_hosts=settings.allowed_hosts
+# Настройка middleware
+setup_middleware(app)
+
+# Обработчики исключений
+@app.exception_handler(APEXException)
+async def apex_exception_handler(request: Request, exc: APEXException):
+    """Обработчик для APEX исключений"""
+    logger.error(f"APEX Exception: {exc.message}", extra={
+        "status_code": exc.status_code,
+        "details": exc.details,
+        "path": request.url.path
+    })
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": {
+                "message": exc.message,
+                "type": exc.__class__.__name__,
+                "details": exc.details
+            }
+        }
     )
 
-# CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origins,
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-    allow_headers=["*"],
-)
+
+@app.exception_handler(ValidationError)
+async def validation_exception_handler(request: Request, exc: ValidationError):
+    """Обработчик для ошибок валидации"""
+    logger.warning(f"Validation Error: {exc.message}", extra={
+        "details": exc.details,
+        "path": request.url.path
+    })
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": {
+                "message": exc.message,
+                "type": "ValidationError",
+                "details": exc.details
+            }
+        }
+    )
+
+
+@app.exception_handler(DatabaseError)
+async def database_exception_handler(request: Request, exc: DatabaseError):
+    """Обработчик для ошибок базы данных"""
+    logger.error(f"Database Error: {exc.message}", extra={
+        "path": request.url.path
+    })
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": {
+                "message": "Внутренняя ошибка сервера",
+                "type": "DatabaseError"
+            }
+        }
+    )
+
+
+@app.exception_handler(ExternalServiceError)
+async def external_service_exception_handler(request: Request, exc: ExternalServiceError):
+    """Обработчик для ошибок внешних сервисов"""
+    logger.error(f"External Service Error: {exc.message}", extra={
+        "service": exc.details.get("service"),
+        "path": request.url.path
+    })
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": {
+                "message": exc.message,
+                "type": "ExternalServiceError",
+                "details": exc.details
+            }
+        }
+    )
+
 
 # Health check endpoint
-@app.get("/health")
+@app.get("/health", tags=["health"])
 async def health_check():
     """Health check endpoint для Kubernetes probes и мониторинга"""
     return {
         "status": "healthy",
         "environment": settings.environment,
         "version": "1.0.0",
-        "debug": settings.debug
+        "debug": settings.debug,
+        "timestamp": datetime.utcnow().isoformat()
     }
 
 @app.get("/")
@@ -113,16 +201,6 @@ try:
     
 except ImportError as e:
     logger.warning(f"Some API modules not available: {e}")
-
-# Error handlers
-@app.exception_handler(404)
-async def not_found_handler(request, exc):
-    return {"error": "Endpoint not found", "path": request.url.path}
-
-@app.exception_handler(500)
-async def internal_error_handler(request, exc):
-    logger.error(f"Internal server error: {exc}")
-    return {"error": "Internal server error"}
 
 if __name__ == "__main__":
     import uvicorn

@@ -24,6 +24,9 @@ WORKDIR /app
 
 ENV NODE_ENV production
 
+# Установка curl для healthcheck
+RUN apk add --no-cache curl
+
 # Создание пользователя для безопасности
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs

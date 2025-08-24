@@ -16,23 +16,32 @@ services:
       - RUN_MIGRATIONS=false
       - DATABASE_URL=postgresql://asia:asia@db:5432/asia_crm_staging
       - REDIS_URL=redis://redis:6379
+      # ⚠️ ВНИМАНИЕ: Для production используйте Docker Secrets или внешние переменные
+      # Эти значения только для staging/development
       - SECRET_KEY=your-staging-secret-key-change-in-production
       - JWT_SECRET=your-staging-jwt-secret-change-in-production
       - ALLOWED_HOSTS_RAW=localhost,127.0.0.1,*.apex-asia.com
       - CORS_ORIGINS_RAW=http://localhost:3000,https://staging.apex-asia.com
-      - AMOCRM_CLIENT_ID=
-      - AMOCRM_CLIENT_SECRET=
-      - AMOCRM_REDIRECT_URI=http://api.staging.apex-asia.com/auth/amocrm/callback
-      - AMOCRM_SUBDOMAIN=
-      - TELEGRAM_BOT_TOKEN=
-      - TELEGRAM_CHAT_ID=
-      - WHATSAPP_API_URL=
-      - WHATSAPP_API_KEY=
-      - EMAIL_SMTP_HOST=
-      - EMAIL_SMTP_PORT=587
-      - EMAIL_USERNAME=
-      - EMAIL_PASSWORD=
-      - EMAIL_FROM=
+      
+      # 🔐 AmoCRM интеграция - для production используйте Docker Secrets
+      - AMOCRM_CLIENT_ID=${AMOCRM_CLIENT_ID:-}
+      - AMOCRM_CLIENT_SECRET=${AMOCRM_CLIENT_SECRET:-}
+      - AMOCRM_REDIRECT_URI=${AMOCRM_REDIRECT_URI:-http://api.staging.apex-asia.com/auth/amocrm/callback}
+      - AMOCRM_SUBDOMAIN=${AMOCRM_SUBDOMAIN:-}
+      
+      # 📱 Уведомления - для production используйте Docker Secrets
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
+      - WHATSAPP_API_URL=${WHATSAPP_API_URL:-}
+      - WHATSAPP_API_KEY=${WHATSAPP_API_KEY:-}
+      
+      # 📧 Email - для production используйте Docker Secrets
+      - EMAIL_SMTP_HOST=${EMAIL_SMTP_HOST:-}
+      - EMAIL_SMTP_PORT=${EMAIL_SMTP_PORT:-587}
+      - EMAIL_USERNAME=${EMAIL_USERNAME:-}
+      - EMAIL_PASSWORD=${EMAIL_PASSWORD:-}
+      - EMAIL_FROM=${EMAIL_FROM:-}
+      
       - LOG_FILE=app.log
     depends_on:
       - db
@@ -119,30 +128,7 @@ services:
       - "traefik.http.services.frontend.loadbalancer.server.port=3000"
       - "portainer.stack.name=apex-staging"
 
-  nginx:
-    image: nginx:alpine
-    container_name: asia-nginx-staging
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx/nginx-staging.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/ssl:/etc/nginx/ssl:ro
-    depends_on:
-      - backend
-      - frontend
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.nginx.rule=Host(`staging.apex-asia.com`)"
-      - "traefik.http.services.nginx.loadbalancer.server.port=80"
-      - "portainer.stack.name=apex-staging"
+
 
 volumes:
   pgdata_staging:

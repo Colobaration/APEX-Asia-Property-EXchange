@@ -1,55 +1,62 @@
 import logging
-from loguru import logger
+import logging.handlers
+import sys
+from pathlib import Path
 from app.core.config import settings
 
-# Настройка логирования
 def setup_logging():
-    """Настройка системы логирования"""
+    """Настройка логирования для приложения"""
     
-    # Удаление стандартного обработчика
-    logger.remove()
+    # Создаем директорию для логов если её нет
+    log_dir = Path("logs")
+    log_dir.mkdir(exist_ok=True)
     
-    # Добавление обработчика для консоли
-    logger.add(
-        "logs/app.log",
-        rotation="10 MB",
-        retention="30 days",
-        level=settings.log_level,
-        format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {name}:{function}:{line} | {message}",
-        compression="zip"
+    # Настраиваем форматтер
+    formatter = logging.Formatter(
+        fmt=settings.log_format,
+        datefmt="%Y-%m-%d %H:%M:%S"
     )
     
-    # Добавление обработчика для ошибок
-    logger.add(
-        "logs/error.log",
-        rotation="10 MB",
-        retention="90 days",
-        level="ERROR",
-        format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {name}:{function}:{line} | {message}",
-        compression="zip"
-    )
+    # Настраиваем уровень логирования
+    log_level = getattr(logging, settings.log_level.upper(), logging.INFO)
     
-    # Перехват стандартного logging
-    class InterceptHandler(logging.Handler):
-        def emit(self, record):
-            try:
-                level = logger.level(record.levelname).name
-            except ValueError:
-                level = record.levelno
-            
-            frame, depth = logging.currentframe(), 2
-            while frame.f_code.co_filename == logging.__file__:
-                frame = frame.f_back
-                depth += 1
-            
-            logger.opt(depth=depth, exception=record.exc_info).log(
-                level, record.getMessage()
-            )
+    # Настраиваем корневой логгер
+    root_logger = logging.getLogger()
+    root_logger.setLevel(log_level)
     
-    # Настройка стандартного logging
-    logging.basicConfig(handlers=[InterceptHandler()], level=0, force=True)
+    # Очищаем существующие обработчики
+    root_logger.handlers.clear()
     
-    return logger
+    # Консольный обработчик
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(log_level)
+    console_handler.setFormatter(formatter)
+    root_logger.addHandler(console_handler)
+    
+    # Файловый обработчик (если указан файл логов)
+    if settings.log_file:
+        file_handler = logging.handlers.RotatingFileHandler(
+            log_dir / settings.log_file,
+            maxBytes=10*1024*1024,  # 10MB
+            backupCount=5,
+            encoding='utf-8'
+        )
+        file_handler.setLevel(log_level)
+        file_handler.setFormatter(formatter)
+        root_logger.addHandler(file_handler)
+    
+    # Настраиваем логи для внешних библиотек
+    logging.getLogger("uvicorn").setLevel(logging.INFO)
+    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+    logging.getLogger("sqlalchemy").setLevel(logging.WARNING)
+    logging.getLogger("alembic").setLevel(logging.INFO)
+    
+    # Логируем информацию о настройке
+    logger = logging.getLogger(__name__)
+    logger.info(f"Логирование настроено. Уровень: {settings.log_level}")
+    logger.info(f"Окружение: {settings.environment}")
+    logger.info(f"Debug режим: {settings.debug}")
 
-# Инициализация логгера
-setup_logging()
+def get_logger(name: str) -> logging.Logger:
+    """Получить логгер с указанным именем"""
+    return logging.getLogger(name)

@@ -1,209 +1,176 @@
-# APEX Asia Property Exchange - Makefile
+# APEX Asia Property Exchange - Main Makefile
+# Управление всем проектом
 
-.PHONY: help install test lint build deploy clean docker-build docker-push
-
-# Переменные
-PROJECT_NAME = apex-asia-property-exchange
-VERSION ?= $(shell git rev-parse --short HEAD)
-REGISTRY = ghcr.io
-IMAGE_NAME = $(shell git config --get remote.origin.url | sed 's/.*github.com[:/]\([^/]*\/[^/]*\).*/\1/')
-
-# Цвета для вывода
-GREEN = \033[0;32m
-YELLOW = \033[1;33m
-RED = \033[0;31m
-NC = \033[0m # No Color
+.PHONY: help dev install lint format test build clean docker-up docker-down docker-build docker-logs
 
 help: ## Показать справку
-	@echo "$(GREEN)APEX Asia Property Exchange - Команды:$(NC)"
+	@echo "APEX Asia Property Exchange - Project Management"
+	@echo "==============================================="
 	@echo ""
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(YELLOW)%-20s$(NC) %s\n", $$1, $$2}'
+	@echo "Доступные команды:"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
 # Установка зависимостей
-install: ## Установить все зависимости
-	@echo "$(GREEN)Устанавливаем зависимости...$(NC)"
-	cd backend && pip install -r requirements.txt
-	cd frontend && npm install
+install: ## Установить зависимости для всех сервисов
+	@echo "📦 Установка зависимостей для всех сервисов..."
+	@echo "Backend..."
+	@cd backend && make install
+	@echo "Frontend..."
+	@cd frontend && make install
+	@echo "✅ Все зависимости установлены"
+
+# Разработка
+dev: ## Запустить все сервисы в режиме разработки
+	@echo "🚀 Запуск всех сервисов в режиме разработки..."
+	docker-compose up -d db redis
+	@echo "⏳ Ожидание готовности базы данных..."
+	@sleep 10
+	@echo "Backend..."
+	@cd backend && make dev &
+	@echo "Frontend..."
+	@cd frontend && make dev &
+	@echo "✅ Все сервисы запущены"
+	@echo "📱 Frontend: http://localhost:3000"
+	@echo "🔧 Backend API: http://localhost:8000"
+	@echo "📊 API Docs: http://localhost:8000/docs"
+
+# Линтинг и форматирование
+lint: ## Проверить код линтерами
+	@echo "🔍 Проверка кода..."
+	@echo "Backend..."
+	@cd backend && make lint
+	@echo "Frontend..."
+	@cd frontend && make lint
+	@echo "✅ Линтинг завершен"
+
+lint-fix: ## Исправить ошибки линтера
+	@echo "🔧 Исправление ошибок линтера..."
+	@echo "Backend..."
+	@cd backend && make format
+	@echo "Frontend..."
+	@cd frontend && make lint-fix
+	@echo "✅ Ошибки исправлены"
+
+format: ## Форматировать код
+	@echo "✨ Форматирование кода..."
+	@echo "Backend..."
+	@cd backend && make format
+	@echo "Frontend..."
+	@cd frontend && make format
+	@echo "✅ Форматирование завершено"
 
 # Тестирование
-test: ## Запустить все тесты
-	@echo "$(GREEN)Запускаем тесты...$(NC)"
-	cd backend && pytest tests/ -v --cov=app --cov-report=html
-	cd frontend && npm test -- --coverage --watchAll=false
+test: ## Запустить тесты
+	@echo "🧪 Запуск тестов..."
+	@echo "Backend..."
+	@cd backend && make test
+	@echo "Frontend..."
+	@cd frontend && make test
+	@echo "✅ Тестирование завершено"
 
-test-backend: ## Тестировать только backend
-	@echo "$(GREEN)Тестируем backend...$(NC)"
-	cd backend && pytest tests/ -v --cov=app --cov-report=html
-
-test-frontend: ## Тестировать только frontend
-	@echo "$(GREEN)Тестируем frontend...$(NC)"
-	cd frontend && npm test -- --coverage --watchAll=false
-
-# Линтинг
-lint: ## Запустить линтеры
-	@echo "$(GREEN)Запускаем линтеры...$(NC)"
-	cd backend && black . && isort . && flake8 .
-	cd frontend && npm run lint
-
-lint-backend: ## Линтинг backend
-	@echo "$(GREEN)Линтинг backend...$(NC)"
-	cd backend && black . && isort . && flake8 .
-
-lint-frontend: ## Линтинг frontend
-	@echo "$(GREEN)Линтинг frontend...$(NC)"
-	cd frontend && npm run lint
+test-coverage: ## Запустить тесты с покрытием
+	@echo "📊 Запуск тестов с покрытием..."
+	@echo "Backend..."
+	@cd backend && make test
+	@echo "Frontend..."
+	@cd frontend && make test-coverage
+	@echo "✅ Тестирование с покрытием завершено"
 
 # Сборка
-build: ## Собрать все компоненты
-	@echo "$(GREEN)Собираем проект...$(NC)"
-	cd frontend && npm run build
+build: ## Собрать все сервисы
+	@echo "🏗️ Сборка всех сервисов..."
+	@echo "Backend..."
+	@cd backend && make docker-build
+	@echo "Frontend..."
+	@cd frontend && make docker-build
+	@echo "✅ Сборка завершена"
 
 # Docker команды
-docker-build: ## Собрать Docker образы
-	@echo "$(GREEN)Собираем Docker образы...$(NC)"
-	docker build -t $(REGISTRY)/$(IMAGE_NAME)-backend:$(VERSION) ./backend
-	docker build -t $(REGISTRY)/$(IMAGE_NAME)-frontend:$(VERSION) ./frontend
-
-docker-push: ## Отправить Docker образы в registry
-	@echo "$(GREEN)Отправляем Docker образы...$(NC)"
-	docker push $(REGISTRY)/$(IMAGE_NAME)-backend:$(VERSION)
-	docker push $(REGISTRY)/$(IMAGE_NAME)-frontend:$(VERSION)
-
-# Простой деплой (без Kubernetes)
-deploy-staging: ## Деплой в staging
-	@echo "$(GREEN)Деплоим в staging...$(NC)"
-	./scripts/deploy-simple.sh staging $(VERSION)
-
-deploy-production: ## Деплой в production
-	@echo "$(GREEN)Деплоим в production...$(NC)"
-	./scripts/deploy-simple.sh production $(VERSION)
-
-# Docker Compose команды
-dev: ## Запустить в режиме разработки
-	@echo "$(GREEN)Запускаем в режиме разработки...$(NC)"
+docker-up: ## Запустить все сервисы в Docker
+	@echo "🐳 Запуск всех сервисов в Docker..."
 	docker-compose up -d
+	@echo "✅ Сервисы запущены"
+	@echo "📱 Frontend: http://localhost:3000"
+	@echo "🔧 Backend API: http://localhost:8000"
+	@echo "📊 API Docs: http://localhost:8000/docs"
 
-dev-stop: ## Остановить режим разработки
-	@echo "$(GREEN)Останавливаем режим разработки...$(NC)"
+docker-down: ## Остановить все сервисы в Docker
+	@echo "🛑 Остановка всех сервисов в Docker..."
 	docker-compose down
+	@echo "✅ Сервисы остановлены"
 
-staging: ## Запустить staging окружение
-	@echo "$(GREEN)Запускаем staging окружение...$(NC)"
-	TAG=$(VERSION) docker-compose -f docker-compose.staging.yml up -d
+docker-build: ## Собрать все Docker образы
+	@echo "🐳 Сборка всех Docker образов..."
+	docker-compose build
+	@echo "✅ Образы собраны"
 
-staging-stop: ## Остановить staging окружение
-	@echo "$(GREEN)Останавливаем staging окружение...$(NC)"
-	docker-compose -f docker-compose.staging.yml down
-
-production: ## Запустить production окружение
-	@echo "$(GREEN)Запускаем production окружение...$(NC)"
-	TAG=$(VERSION) docker-compose -f docker-compose.prod.yml up -d
-
-production-stop: ## Остановить production окружение
-	@echo "$(GREEN)Останавливаем production окружение...$(NC)"
-	docker-compose -f docker-compose.prod.yml down
-
-# Мониторинг
-status: ## Показать статус всех сервисов
-	@echo "$(GREEN)Статус сервисов:$(NC)"
-	@echo "Development:"
-	docker-compose ps
-	@echo ""
-	@echo "Staging:"
-	docker-compose -f docker-compose.staging.yml ps
-	@echo ""
-	@echo "Production:"
-	docker-compose -f docker-compose.prod.yml ps
-
-logs: ## Показать логи development
-	@echo "$(GREEN)Логи development:$(NC)"
+docker-logs: ## Показать логи Docker сервисов
+	@echo "📋 Логи Docker сервисов..."
 	docker-compose logs -f
-
-logs-staging: ## Показать логи staging
-	@echo "$(GREEN)Логи staging:$(NC)"
-	docker-compose -f docker-compose.staging.yml logs -f
-
-logs-production: ## Показать логи production
-	@echo "$(GREEN)Логи production:$(NC)"
-	docker-compose -f docker-compose.prod.yml logs -f
-
-# CI/CD
-ci-test: ## Запустить тесты для CI
-	@echo "$(GREEN)Запускаем CI тесты...$(NC)"
-	cd backend && pytest tests/ -v --cov=app --cov-report=xml
-	cd frontend && npm test -- --coverage --watchAll=false --coverageReporters=lcov
-
-ci-lint: ## Запустить линтеры для CI
-	@echo "$(GREEN)Запускаем CI линтеры...$(NC)"
-	cd backend && black --check . && isort --check-only . && flake8 .
-	cd frontend && npm run lint
-
-# Безопасность
-security-scan: ## Сканирование безопасности
-	@echo "$(GREEN)Сканируем на уязвимости...$(NC)"
-	cd backend && safety check
-	cd frontend && npm audit
-
-# Мониторинг
-monitor: ## Мониторинг приложения
-	@echo "$(GREEN)Мониторинг приложения:$(NC)"
-	@echo "Development Backend health:"
-	curl -s http://localhost:8000/health || echo "Backend недоступен"
-	@echo "Development Frontend:"
-	curl -s http://localhost:3000/ | head -1 || echo "Frontend недоступен"
-
-monitor-staging: ## Мониторинг staging
-	@echo "$(GREEN)Мониторинг staging:$(NC)"
-	@echo "Staging Backend health:"
-	curl -s http://localhost:8001/health || echo "Backend недоступен"
-	@echo "Staging Frontend:"
-	curl -s http://localhost:3001/ | head -1 || echo "Frontend недоступен"
-
-# Создание релиза
-release: ## Создать новый релиз
-	@echo "$(GREEN)Создаем релиз...$(NC)"
-	@read -p "Введите версию (например, v1.2.3): " version; \
-	git tag $$version; \
-	git push origin $$version; \
-	echo "Релиз $$version создан и отправлен"
-
-# Полная проверка перед деплоем
-pre-deploy: install lint test security-scan ## Полная проверка перед деплоем
-	@echo "$(GREEN)Все проверки пройдены! Готов к деплою.$(NC)"
 
 # Очистка
 clean: ## Очистить временные файлы
-	@echo "$(GREEN)Очищаем временные файлы...$(NC)"
-	find . -type f -name "*.pyc" -delete
-	find . -type d -name "__pycache__" -delete
-	find . -type d -name "*.egg-info" -exec rm -rf {} +
-	cd frontend && rm -rf node_modules .next coverage
-	cd backend && rm -rf htmlcov .pytest_cache
-
-clean-all: ## Очистить все контейнеры и образы
-	@echo "$(RED)Очищаем все контейнеры и образы...$(NC)"
+	@echo "🧹 Очистка временных файлов..."
+	@echo "Backend..."
+	@cd backend && make clean
+	@echo "Frontend..."
+	@cd frontend && make clean
+	@echo "Docker..."
 	docker-compose down -v
-	docker-compose -f docker-compose.staging.yml down -v
-	docker-compose -f docker-compose.prod.yml down -v
-	docker system prune -af
+	docker system prune -f
+	@echo "✅ Очистка завершена"
 
-# Резервное копирование
-backup: ## Создать резервную копию БД
-	@echo "$(GREEN)Создаем резервную копию БД...$(NC)"
-	docker exec asia-db pg_dump -U asia asia_crm > backup_$(shell date +%Y%m%d_%H%M%S).sql
+# Миграции базы данных
+migrate: ## Выполнить миграции базы данных
+	@echo "🔄 Выполнение миграций..."
+	@cd backend && make migrate
 
-backup-staging: ## Создать резервную копию staging БД
-	@echo "$(GREEN)Создаем резервную копию staging БД...$(NC)"
-	docker exec asia-db-staging pg_dump -U asia asia_crm_staging > backup_staging_$(shell date +%Y%m%d_%H%M%S).sql
+migrate-status: ## Показать статус миграций
+	@echo "📊 Статус миграций..."
+	@cd backend && make migrate-status
 
-# Восстановление
-restore: ## Восстановить БД из резервной копии
-	@echo "$(RED)Восстановление БД из резервной копии...$(NC)"
-	@read -p "Введите имя файла резервной копии: " file; \
-	docker exec -T asia-db psql -U asia asia_crm < $$file
+# Проверки
+check-all: ## Выполнить все проверки
+	@echo "🔍 Выполнение всех проверок..."
+	@echo "Backend..."
+	@cd backend && make lint
+	@echo "Frontend..."
+	@cd frontend && make check-all
+	@echo "✅ Все проверки пройдены"
 
-restore-staging: ## Восстановить staging БД из резервной копии
-	@echo "$(RED)Восстановление staging БД из резервной копии...$(NC)"
-	@read -p "Введите имя файла резервной копии: " file; \
-	docker exec -T asia-db-staging psql -U asia asia_crm_staging < $$file
+# CI/CD
+ci: ## Команды для CI/CD
+	@echo "🤖 Выполнение CI/CD команд..."
+	@echo "Backend..."
+	@cd backend && make lint
+	@echo "Frontend..."
+	@cd frontend && make ci
+	@echo "✅ CI/CD команды выполнены"
+
+# Информация
+info: ## Показать информацию о проекте
+	@echo "📋 Информация о проекте:"
+	@echo "  • Backend: FastAPI + SQLAlchemy + PostgreSQL"
+	@echo "  • Frontend: Next.js + TypeScript + Tailwind"
+	@echo "  • Database: PostgreSQL"
+	@echo "  • Cache: Redis"
+	@echo "  • Containerization: Docker + Docker Compose"
+	@echo "  • CI/CD: GitHub Actions"
+	@echo ""
+	@echo "Полезные команды:"
+	@echo "  • make dev          - Запуск в режиме разработки"
+	@echo "  • make docker-up    - Запуск в Docker"
+	@echo "  • make test         - Запуск тестов"
+	@echo "  • make lint         - Проверка кода"
+	@echo "  • make migrate      - Миграции БД"
+
+# Быстрый старт
+quick-start: ## Быстрый старт проекта
+	@echo "⚡ Быстрый старт проекта..."
+	@make install
+	@make docker-up
+	@echo "✅ Проект запущен!"
+	@echo "📱 Frontend: http://localhost:3000"
+	@echo "🔧 Backend API: http://localhost:8000"
+	@echo "📊 API Docs: http://localhost:8000/docs"
 

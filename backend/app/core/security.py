@@ -71,6 +71,8 @@ class SecurityUtils:
     @staticmethod
     def verify_webhook_signature(payload: str, signature: str, secret: str) -> bool:
         """Проверка подписи webhook"""
+        if not secret:
+            return False
         expected_signature = hmac.new(
             secret.encode(),
             payload.encode(),

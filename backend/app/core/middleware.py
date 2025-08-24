@@ -84,15 +84,6 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         # Проверяем, является ли это health check
         is_health_check = request.url.path == "/health"
         
-        # Логируем детали всех запросов для анализа
-        logger.info(
-            f"Request details - Method: {request.method}, Path: {request.url.path}, "
-            f"Client IP: {request.client.host if request.client else 'unknown'}, "
-            f"User-Agent: {request.headers.get('user-agent', 'N/A')}, "
-            f"Host: {request.headers.get('host', 'N/A')}, "
-            f"Is Health Check: {is_health_check}"
-        )
-        
         # Логируем начало запроса (только для не-health check запросов)
         start_time = time.time()
         

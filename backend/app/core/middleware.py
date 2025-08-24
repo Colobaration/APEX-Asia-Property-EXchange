@@ -87,20 +87,6 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         # Логируем начало запроса (только для не-health check запросов)
         start_time = time.time()
         
-        # Всегда логируем детали запроса для отладки
-        logger.info(
-            f"Request details",
-            extra={
-                "request_id": request_id,
-                "method": request.method,
-                "url": str(request.url),
-                "path": request.url.path,
-                "client_ip": request.client.host if request.client else "unknown",
-                "user_agent": request.headers.get("user-agent", ""),
-                "is_health_check": is_health_check
-            }
-        )
-        
         if not is_health_check:
             logger.info(
                 f"Request started",

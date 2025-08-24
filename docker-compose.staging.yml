@@ -14,7 +14,7 @@ services:
       - LOG_LEVEL=INFO
       - INIT_DB=false
       - RUN_MIGRATIONS=false
-      - DB_URL=postgresql://asia:asia@db:5432/asia_crm_staging
+      - DATABASE_URL=postgresql://asia:asia@db:5432/asia_crm_staging
       - REDIS_URL=redis://redis:6379
       - SECRET_KEY=your-staging-secret-key-change-in-production
       - JWT_SECRET=your-staging-jwt-secret-change-in-production

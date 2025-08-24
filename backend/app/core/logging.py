@@ -9,7 +9,11 @@ def setup_logging():
     
     # Создаем директорию для логов если её нет
     log_dir = Path("logs")
-    log_dir.mkdir(exist_ok=True)
+    try:
+        log_dir.mkdir(exist_ok=True)
+    except PermissionError:
+        # Если нет прав на создание директории, используем только консольное логирование
+        print("⚠️  Предупреждение: Нет прав на создание директории логов. Используется только консольное логирование.")
     
     # Настраиваем форматтер
     formatter = logging.Formatter(
@@ -35,20 +39,35 @@ def setup_logging():
     
     # Файловый обработчик (если указан файл логов)
     if settings.log_file:
-        # Убираем 'logs/' из пути, если он уже есть
-        log_file_path = settings.log_file
-        if log_file_path.startswith('logs/'):
-            log_file_path = log_file_path[6:]  # Убираем 'logs/'
-        
-        file_handler = logging.handlers.RotatingFileHandler(
-            log_dir / log_file_path,
-            maxBytes=10*1024*1024,  # 10MB
-            backupCount=5,
-            encoding='utf-8'
-        )
-        file_handler.setLevel(log_level)
-        file_handler.setFormatter(formatter)
-        root_logger.addHandler(file_handler)
+        try:
+            # Убираем 'logs/' из пути, если он уже есть
+            log_file_path = settings.log_file
+            if log_file_path.startswith('logs/'):
+                log_file_path = log_file_path[6:]  # Убираем 'logs/'
+            
+            # Проверяем, можем ли мы создать файл
+            log_file_full_path = log_dir / log_file_path
+            
+            # Пытаемся создать файл для проверки прав
+            try:
+                with open(log_file_full_path, 'a') as f:
+                    pass
+            except PermissionError:
+                raise PermissionError(f"Нет прав на запись в файл: {log_file_full_path}")
+            
+            file_handler = logging.handlers.RotatingFileHandler(
+                log_file_full_path,
+                maxBytes=10*1024*1024,  # 10MB
+                backupCount=5,
+                encoding='utf-8'
+            )
+            file_handler.setLevel(log_level)
+            file_handler.setFormatter(formatter)
+            root_logger.addHandler(file_handler)
+            print(f"✅ Файловое логирование настроено: {log_file_full_path}")
+        except (PermissionError, OSError) as e:
+            print(f"⚠️  Предупреждение: Не удалось настроить файловое логирование: {e}")
+            print("📝 Используется только консольное логирование")
     
     # Настраиваем логи для внешних библиотек
     logging.getLogger("uvicorn").setLevel(logging.INFO)

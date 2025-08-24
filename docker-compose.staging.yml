@@ -42,13 +42,14 @@ services:
       - EMAIL_PASSWORD=${EMAIL_PASSWORD:-}
       - EMAIL_FROM=${EMAIL_FROM:-}
       
-      - LOG_FILE=app.log
+      # Временно отключаем файловое логирование для staging
+      # - LOG_FILE=app.log
     depends_on:
       - db
       - redis
     restart: unless-stopped
     volumes:
-      - ./backend/logs:/app/logs
+      - backend_logs:/app/logs
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8000/health"]
@@ -134,6 +135,8 @@ volumes:
   pgdata_staging:
     driver: local
   redis_data_staging:
+    driver: local
+  backend_logs:
     driver: local
 
 networks:

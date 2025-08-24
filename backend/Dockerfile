@@ -14,14 +14,22 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Создание пользователя для безопасности
+RUN useradd --create-home --shell /bin/bash app
+
+# Создание директории для логов с правильными правами
+RUN mkdir -p /app/logs && chown -R app:app /app/logs
+
 # Копирование кода приложения
 COPY . .
 
 # Делаем entrypoint скрипт исполняемым
 RUN chmod +x docker-entrypoint.sh
 
-# Создание пользователя для безопасности
-RUN useradd --create-home --shell /bin/bash app && chown -R app:app /app
+# Устанавливаем правильные права на все файлы
+RUN chown -R app:app /app
+
+# Переключаемся на пользователя app
 USER app
 
 # Экспорт порта

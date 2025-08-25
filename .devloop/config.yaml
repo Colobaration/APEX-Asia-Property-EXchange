@@ -1,0 +1,208 @@
+# DevLoop Configuration for APEX Asia Property Exchange
+# Автоматическая разработка и деплой
+
+name: "APEX Admin Panel Development"
+description: "Универсальная админ-панель для технических систем"
+
+# Основные настройки
+settings:
+  auto_commit: true
+  auto_push: false
+  create_pull_requests: true
+  branch_prefix: "feature/"
+  commit_prefix: "🚀"
+  
+# Мониторинг файлов
+watch:
+  - "admin_panel/**/*.py"
+  - "admin_panel/**/*.html"
+  - "admin_panel/**/*.css"
+  - "admin_panel/**/*.js"
+  - "docker-compose*.yml"
+  - "*.md"
+  
+# Игнорируемые файлы
+ignore:
+  - "**/__pycache__/**"
+  - "**/*.pyc"
+  - "**/.DS_Store"
+  - "**/venv/**"
+  - "**/node_modules/**"
+  - "**/.git/**"
+  - "**/logs/**"
+  - "**/media/**"
+  - "**/staticfiles/**"
+
+# Автоматические действия
+actions:
+  # Тестирование
+  test:
+    command: "cd admin_panel && source venv/bin/activate && python manage.py test tests -v 2"
+    on_change: ["admin_panel/**/*.py"]
+    timeout: 300
+    
+  # Проверка кода
+  lint:
+    command: "cd admin_panel && source venv/bin/activate && python manage.py check"
+    on_change: ["admin_panel/**/*.py"]
+    timeout: 60
+    
+  # Миграции
+  migrate:
+    command: "cd admin_panel && source venv/bin/activate && python manage.py migrate"
+    on_change: ["admin_panel/**/migrations/**"]
+    timeout: 120
+    
+  # Сборка статических файлов
+  collectstatic:
+    command: "cd admin_panel && source venv/bin/activate && python manage.py collectstatic --noinput"
+    on_change: ["admin_panel/static/**", "admin_panel/templates/**"]
+    timeout: 60
+
+# Docker действия
+docker:
+  # Сборка образа
+  build:
+    command: "docker-compose -f docker-compose.staging.yml build admin-panel"
+    on_change: ["admin_panel/Dockerfile", "admin_panel/requirements.txt"]
+    timeout: 600
+    
+  # Запуск контейнеров
+  up:
+    command: "docker-compose -f docker-compose.staging.yml up -d admin-panel"
+    on_change: ["docker-compose*.yml"]
+    timeout: 120
+    
+  # Остановка контейнеров
+  down:
+    command: "docker-compose -f docker-compose.staging.yml stop admin-panel"
+    manual: true
+    timeout: 60
+
+# Проверки здоровья
+health_checks:
+  - name: "Admin Panel"
+    url: "http://localhost:8002/admin/"
+    timeout: 30
+    interval: 60
+    
+  - name: "Docker Containers"
+    command: "docker-compose -f docker-compose.staging.yml ps"
+    timeout: 30
+    interval: 120
+
+# Уведомления
+notifications:
+  slack:
+    webhook_url: "${SLACK_WEBHOOK_URL}"
+    channel: "#apex-dev"
+    
+  telegram:
+    bot_token: "${TELEGRAM_BOT_TOKEN}"
+    chat_id: "${TELEGRAM_CHAT_ID}"
+    
+  email:
+    smtp_host: "${EMAIL_SMTP_HOST}"
+    smtp_port: "${EMAIL_SMTP_PORT}"
+    username: "${EMAIL_USERNAME}"
+    password: "${EMAIL_PASSWORD}"
+    to: ["admin@apex-asia.com"]
+
+# Шаблоны коммитов
+commit_templates:
+  feature: "🚀 {type}: {description}"
+  fix: "🐛 {type}: {description}"
+  docs: "📚 {type}: {description}"
+  style: "🎨 {type}: {description}"
+  refactor: "♻️ {type}: {description}"
+  test: "🧪 {type}: {description}"
+  chore: "🔧 {type}: {description}"
+
+# Автоматические задачи
+tasks:
+  # Ежедневная проверка
+  daily_check:
+    schedule: "0 9 * * *"
+    actions:
+      - "docker-compose -f docker-compose.staging.yml ps"
+      - "cd admin_panel && source venv/bin/activate && python manage.py check"
+      - "curl -f http://localhost:8002/admin/"
+      
+  # Еженедельная очистка
+  weekly_cleanup:
+    schedule: "0 10 * * 0"
+    actions:
+      - "docker system prune -f"
+      - "cd admin_panel && find . -name '*.pyc' -delete"
+      - "cd admin_panel && find . -name '__pycache__' -type d -exec rm -rf {} +"
+
+# Интеграции
+integrations:
+  # GitHub Actions
+  github:
+    enabled: true
+    workflow: ".github/workflows/devloop.yml"
+    
+  # Docker Hub
+  dockerhub:
+    enabled: false
+    repository: "apex-asia/admin-panel"
+    
+  # AWS ECR
+  aws_ecr:
+    enabled: false
+    region: "ap-southeast-1"
+    repository: "apex-admin-panel"
+
+# Мониторинг производительности
+performance:
+  # Метрики
+  metrics:
+    - name: "Response Time"
+      command: "curl -w '%{time_total}' -o /dev/null -s http://localhost:8002/admin/"
+      threshold: 2.0
+      
+    - name: "Memory Usage"
+      command: "docker stats --no-stream --format 'table {{.MemUsage}}' asia-admin-panel-staging"
+      threshold: "512Mi"
+      
+    - name: "CPU Usage"
+      command: "docker stats --no-stream --format 'table {{.CPUPerc}}' asia-admin-panel-staging"
+      threshold: "80%"
+
+# Логирование
+logging:
+  level: "INFO"
+  format: "{timestamp} [{level}] {message}"
+  file: "logs/devloop.log"
+  max_size: "10MB"
+  backup_count: 5
+
+# Безопасность
+security:
+  # Сканирование зависимостей
+  dependency_scan:
+    command: "cd admin_panel && source venv/bin/activate && safety check"
+    schedule: "0 2 * * *"
+    
+  # Сканирование кода
+  code_scan:
+    command: "cd admin_panel && source venv/bin/activate && bandit -r ."
+    schedule: "0 3 * * *"
+    
+  # Проверка SSL
+  ssl_check:
+    command: "openssl s_client -connect localhost:443 -servername localhost"
+    schedule: "0 4 * * *"
+
+# Резервное копирование
+backup:
+  database:
+    command: "docker-compose -f docker-compose.staging.yml exec db pg_dump -U asia asia_crm_staging > backup_$(date +%Y%m%d_%H%M%S).sql"
+    schedule: "0 1 * * *"
+    retention: 7
+    
+  files:
+    command: "tar -czf backup_files_$(date +%Y%m%d_%H%M%S).tar.gz admin_panel/"
+    schedule: "0 2 * * 0"
+    retention: 4

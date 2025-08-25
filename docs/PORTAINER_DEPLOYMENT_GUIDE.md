@@ -5,13 +5,11 @@
 ### ❌ Проблема:
 ```
 Failed to deploy a stack: failed to resolve services environment: 
-env file /data/compose/29/.env not found: stat /data/compose/29/.env: no such file or directory
+env file /data/compose/32/.env not found: stat /data/compose/32/.env: no such file or directory
 ```
 
 ### ✅ Решение:
-Созданы файлы переменных окружения для каждого окружения:
-- `development.env` - для development окружения
-- `staging.env` - для staging окружения
+Убрали зависимость от файлов `.env` и перенесли все переменные окружения прямо в `docker-compose.yml` файлы.
 
 ## 🚀 Инструкция по развертыванию
 
@@ -57,59 +55,32 @@ docker-compose -f docker-compose.staging.yml ps
 docker-compose -f docker-compose.staging.yml logs [service]
 ```
 
-## 📁 Файлы переменных окружения
+## 🔧 Конфигурация переменных окружения
 
-### development.env
-```bash
-# Основные настройки
-ENVIRONMENT=development
-DEBUG=true
-LOG_LEVEL=DEBUG
-
-# База данных
-POSTGRES_USER=asia
-POSTGRES_PASSWORD=asia
-POSTGRES_DB=asia_crm_dev
-DATABASE_URL=postgresql://asia:asia@db:5432/asia_crm_dev
-
-# Безопасность
-SECRET_KEY=your-dev-secret-key-change-in-production-2025
-JWT_SECRET=your-dev-jwt-secret-change-in-production-2025
-
-# И другие переменные...
-```
-
-### staging.env
-```bash
-# Основные настройки
-ENVIRONMENT=staging
-DEBUG=false
-LOG_LEVEL=WARNING
-
-# База данных
-POSTGRES_USER=asia
-POSTGRES_PASSWORD=asia
-POSTGRES_DB=asia_crm_staging
-DATABASE_URL=postgresql://asia:asia@db:5432/asia_crm_staging
-
-# Безопасность
-SECRET_KEY=your-staging-secret-key-change-in-production-2025
-JWT_SECRET=your-staging-jwt-secret-change-in-production-2025
-
-# И другие переменные...
-```
-
-## 🔧 Конфигурация в docker-compose
-
-### env_file секция:
+### Development (docker-compose.yml):
 ```yaml
-services:
-  backend:
-    env_file:
-      - development.env  # или staging.env
-    environment:
-      - ENVIRONMENT=development
-      # Дополнительные переменные...
+environment:
+  - ENVIRONMENT=development
+  - LOG_LEVEL=DEBUG
+  - INIT_DB=true
+  - RUN_MIGRATIONS=true
+  - DATABASE_URL=postgresql://asia:asia@db:5432/asia_crm_dev
+  - SECRET_KEY=your-dev-secret-key-change-in-production
+  - JWT_SECRET=your-dev-jwt-secret-change-in-production
+  - CORS_ORIGINS_RAW=http://localhost:3001,https://dev.apex-asia.com
+```
+
+### Staging (docker-compose.staging.yml):
+```yaml
+environment:
+  - ENVIRONMENT=staging
+  - LOG_LEVEL=WARNING
+  - INIT_DB=false
+  - RUN_MIGRATIONS=false
+  - DATABASE_URL=postgresql://asia:asia@db:5432/asia_crm_staging
+  - SECRET_KEY=your-staging-secret-key-change-in-production
+  - JWT_SECRET=your-staging-jwt-secret-change-in-production
+  - CORS_ORIGINS_RAW=http://localhost:3000,https://staging.apex-asia.com
 ```
 
 ## 🌐 Доступ к сервисам
@@ -157,13 +128,13 @@ docker-compose logs [service]
 ## 🛠️ Устранение неполадок
 
 ### 1. Файл .env не найден
-**Решение**: Убедитесь, что файлы `development.env` и `staging.env` находятся в корне проекта.
+**Решение**: ✅ Исправлено - все переменные окружения теперь в docker-compose файлах.
 
 ### 2. Конфликт портов
 **Решение**: Используйте разные порты для разных окружений (уже настроено).
 
 ### 3. Проблемы с базой данных
-**Решение**: Проверьте переменные окружения в файлах `.env`.
+**Решение**: Проверьте переменные окружения в docker-compose файлах.
 
 ### 4. Проблемы с сетью
 **Решение**: Убедитесь, что сети созданы корректно.
@@ -185,6 +156,37 @@ docker-compose logs [service]
 - **Мониторьте ресурсы** контейнеров
 - **Проверяйте health checks** регулярно
 
+## 🔄 Обновление переменных окружения
+
+### Для изменения переменных:
+1. Отредактируйте соответствующий `docker-compose.yml` файл
+2. Обновите stack в Portainer
+3. Или пересоберите локально: `docker-compose up -d --build`
+
+### Переменные для настройки:
+```yaml
+# Основные
+- ENVIRONMENT=development|staging|production
+- LOG_LEVEL=DEBUG|INFO|WARNING|ERROR
+- DEBUG=true|false
+
+# База данных
+- DATABASE_URL=postgresql://user:pass@host:port/db
+- POSTGRES_USER=asia
+- POSTGRES_PASSWORD=asia
+- POSTGRES_DB=asia_crm_dev|asia_crm_staging
+
+# Безопасность
+- SECRET_KEY=your-secret-key
+- JWT_SECRET=your-jwt-secret
+
+# Интеграции
+- AMOCRM_CLIENT_ID=your-client-id
+- AMOCRM_CLIENT_SECRET=your-client-secret
+- TELEGRAM_BOT_TOKEN=your-bot-token
+- WHATSAPP_API_KEY=your-api-key
+```
+
 ## ✅ Готово к развертыванию!
 
-Теперь Portainer сможет корректно развернуть оба окружения без ошибок с файлами `.env`.
+Теперь Portainer сможет корректно развернуть оба окружения без ошибок с файлами `.env`. Все переменные окружения встроены в docker-compose файлы.

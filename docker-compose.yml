@@ -8,8 +8,6 @@ services:
     container_name: asia-backend-dev
     ports:
       - "8000:8000"
-    env_file:
-      - development.env
     environment:
       - ENVIRONMENT=development
       - PYTHONPATH=/app
@@ -68,8 +66,6 @@ services:
   db:
     image: postgres:15-alpine
     container_name: asia-db-dev
-    env_file:
-      - development.env
     environment:
       POSTGRES_USER: asia
       POSTGRES_PASSWORD: asia
@@ -115,8 +111,6 @@ services:
     container_name: asia-frontend-dev
     ports:
       - "3001:3000"
-    env_file:
-      - development.env
     environment:
       - ENVIRONMENT=development
       - NEXT_PUBLIC_API_URL=http://api.dev.apex-asia.com
@@ -143,8 +137,6 @@ services:
     container_name: asia-admin-panel-dev
     ports:
       - "8003:8000"
-    env_file:
-      - development.env
     environment:
       - ENVIRONMENT=development
       - DJANGO_DEBUG=True

@@ -8,8 +8,6 @@ services:
     container_name: asia-backend-staging
     ports:
       - "8001:8000"
-    env_file:
-      - staging.env
     environment:
       - ENVIRONMENT=staging
       - PYTHONPATH=/app
@@ -68,8 +66,6 @@ services:
   db:
     image: postgres:15-alpine
     container_name: asia-db-staging
-    env_file:
-      - staging.env
     environment:
       POSTGRES_USER: asia
       POSTGRES_PASSWORD: asia
@@ -115,8 +111,6 @@ services:
     container_name: asia-frontend-staging
     ports:
       - "3000:3000"
-    env_file:
-      - staging.env
     environment:
       - ENVIRONMENT=staging
       - NEXT_PUBLIC_API_URL=http://api.staging.apex-asia.com
@@ -143,8 +137,6 @@ services:
     container_name: asia-admin-panel-staging
     ports:
       - "8002:8000"
-    env_file:
-      - staging.env
     environment:
       - ENVIRONMENT=staging
       - DJANGO_DEBUG=False

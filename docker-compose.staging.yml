@@ -129,6 +129,56 @@ services:
       - "traefik.http.services.frontend.loadbalancer.server.port=3000"
       - "portainer.stack.name=apex-staging"
 
+  # 🎛️ Админ-панель APEX
+  admin-panel:
+    build: 
+      context: ./admin_panel
+      dockerfile: Dockerfile
+    container_name: asia-admin-panel-staging
+    ports:
+      - "8002:8000"
+    environment:
+      - ENVIRONMENT=staging
+      - DJANGO_DEBUG=False
+      - DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,*.apex-asia.com
+      - POSTGRES_DB=asia_crm_staging
+      - POSTGRES_USER=asia
+      - POSTGRES_PASSWORD=asia
+      - POSTGRES_HOST=db
+      - POSTGRES_PORT=5432
+      - REDIS_URL=redis://redis:6379/0
+      # 🔐 API интеграции - для production используйте Docker Secrets
+      - AMOCRM_CLIENT_ID=${AMOCRM_CLIENT_ID:-}
+      - AMOCRM_CLIENT_SECRET=${AMOCRM_CLIENT_SECRET:-}
+      - AMOCRM_REDIRECT_URI=${AMOCRM_REDIRECT_URI:-http://admin.staging.apex-asia.com/api/auth/amocrm/callback}
+      - WHATSAPP_API_KEY=${WHATSAPP_API_KEY:-}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      # 📧 Email настройки
+      - EMAIL_HOST=${EMAIL_SMTP_HOST:-}
+      - EMAIL_PORT=${EMAIL_SMTP_PORT:-587}
+      - EMAIL_HOST_USER=${EMAIL_USERNAME:-}
+      - EMAIL_HOST_PASSWORD=${EMAIL_PASSWORD:-}
+    depends_on:
+      - db
+      - redis
+    restart: unless-stopped
+    volumes:
+      - admin_panel_logs:/app/logs
+      - admin_panel_media:/app/media
+      - admin_panel_static:/app/staticfiles
+    command: ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "3", "apex_admin.wsgi:application"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/admin/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.admin-panel.rule=Host(`admin.staging.apex-asia.com`)"
+      - "traefik.http.services.admin-panel.loadbalancer.server.port=8000"
+      - "portainer.stack.name=apex-staging"
+
 
 
 volumes:
@@ -137,6 +187,12 @@ volumes:
   redis_data_staging:
     driver: local
   backend_logs:
+    driver: local
+  admin_panel_logs:
+    driver: local
+  admin_panel_media:
+    driver: local
+  admin_panel_static:
     driver: local
 
 networks:

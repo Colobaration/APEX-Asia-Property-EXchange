@@ -1,133 +1,201 @@
 version: "3.9"
 
 services:
-  # API Backend сервер
   backend:
-    build: ./backend
-    container_name: asia-backend
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: asia-backend-staging
     ports:
-      - "8000:8000"
-    env_file:
-      - .env
+      - "8001:8000"
     environment:
-      - ENVIRONMENT=development
+      - ENVIRONMENT=staging
       - PYTHONPATH=/app
-    volumes:
-      - ./backend:/app
-      - ./backend/logs:/app/logs
+      - LOG_LEVEL=WARNING
+      - INIT_DB=false
+      - RUN_MIGRATIONS=false
+      - DATABASE_URL=postgresql://asia:asia@db:5432/asia_crm_staging
+      - REDIS_URL=redis://redis:6379/0
+      # ⚠️ ВНИМАНИЕ: Для production используйте Docker Secrets или внешние переменные
+      # Эти значения только для staging/development
+      - SECRET_KEY=your-staging-secret-key-change-in-production
+      - JWT_SECRET=your-staging-jwt-secret-change-in-production
+      - ALLOWED_HOSTS_RAW=localhost,127.0.0.1,*.apex-asia.com
+      - CORS_ORIGINS_RAW=http://localhost:3000,https://staging.apex-asia.com
+      
+      # 🔐 AmoCRM интеграция - для production используйте Docker Secrets
+      - AMOCRM_CLIENT_ID=${AMOCRM_CLIENT_ID:-}
+      - AMOCRM_CLIENT_SECRET=${AMOCRM_CLIENT_SECRET:-}
+      - AMOCRM_REDIRECT_URI=${AMOCRM_REDIRECT_URI:-http://api.staging.apex-asia.com/auth/amocrm/callback}
+      - AMOCRM_SUBDOMAIN=${AMOCRM_SUBDOMAIN:-}
+      
+      # 📱 Уведомления - для production используйте Docker Secrets
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
+      - WHATSAPP_API_URL=${WHATSAPP_API_URL:-}
+      - WHATSAPP_API_KEY=${WHATSAPP_API_KEY:-}
+      
+      # 📧 Email - для production используйте Docker Secrets
+      - EMAIL_SMTP_HOST=${EMAIL_SMTP_HOST:-}
+      - EMAIL_SMTP_PORT=${EMAIL_SMTP_PORT:-587}
+      - EMAIL_USERNAME=${EMAIL_USERNAME:-}
+      - EMAIL_PASSWORD=${EMAIL_PASSWORD:-}
+      - EMAIL_FROM=${EMAIL_FROM:-}
+      
+      # Временно отключаем файловое логирование для staging
+      # - LOG_FILE=app.log
     depends_on:
       - db
       - redis
     restart: unless-stopped
+    volumes:
+      - backend_logs:/app/logs
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.backend.rule=Host(`api.staging.apex-asia.com`)"
+      - "traefik.http.services.backend.loadbalancer.server.port=8000"
+      - "portainer.stack.name=apex-staging"
 
-  # Frontend приложение
-  frontend:
-    build: ./frontend
-    container_name: asia-frontend
-    ports:
-      - "3000:3000"
-    env_file:
-      - .env
-    environment:
-      - NODE_ENV=development
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
-      - NEXT_PUBLIC_ENVIRONMENT=development
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-      - ./logs:/app/logs
-    depends_on:
-      - backend
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  # База данных PostgreSQL
   db:
-    image: postgres:15
-    container_name: asia-db
+    image: postgres:15-alpine
+    container_name: asia-db-staging
     environment:
-      POSTGRES_USER: ${DB_USER:-asia}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-asia}
-      POSTGRES_DB: ${DB_NAME:-asia_crm}
+      POSTGRES_USER: asia
+      POSTGRES_PASSWORD: asia
+      POSTGRES_DB: asia_crm_staging
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - pgdata_staging:/var/lib/postgresql/data
+      - ./backend/alembic:/docker-entrypoint-initdb.d
     ports:
-      - "${DB_PORT:-5432}:5432"
+      - "5433:5432"
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-asia} -d ${DB_NAME:-asia_crm}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-asia} -d ${DB_NAME:-asia_crm_staging}"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 30s
+    labels:
+      - "portainer.stack.name=apex-staging"
 
-  # Redis кэш
   redis:
     image: redis:7-alpine
-    container_name: asia-redis
+    container_name: asia-redis-staging
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "6380:6379"
     volumes:
-      - redis_data:/data
+      - redis_data_staging:/data
     restart: unless-stopped
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-}
+    command: redis-server --appendonly yes
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 30s
+    labels:
+      - "portainer.stack.name=apex-staging"
 
-  # Metabase для аналитики
-  metabase:
-    image: metabase/metabase:latest
-    container_name: asia-metabase
+  frontend:
+    build: 
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: asia-frontend-staging
     ports:
-      - "3001:3000"
+      - "3000:3000"
     environment:
-      MB_DB_FILE: /metabase-data/metabase.db
-      MB_DB_TYPE: h2
-      MB_DB_DBNAME: metabase
-      MB_DB_USER: metabase
-      MB_DB_PASS: metabase
-    volumes:
-      - ./analytics/dashboards:/metabase-data
-    restart: unless-stopped
+      - ENVIRONMENT=staging
+      - NEXT_PUBLIC_API_URL=http://api.staging.apex-asia.com
     depends_on:
-      - db
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
-      interval: 60s
-      timeout: 30s
-      retries: 3
-      start_period: 120s
-
-  # Nginx для проксирования
-  nginx:
-    image: nginx:alpine
-    container_name: asia-nginx
-    ports:
-      - "${NGINX_PORT:-80}:80"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-    depends_on:
-      - frontend
       - backend
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 40s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.rule=Host(`staging.apex-asia.com`)"
+      - "traefik.http.services.frontend.loadbalancer.server.port=3000"
+      - "portainer.stack.name=apex-staging"
+
+  # 🎛️ Админ-панель APEX
+  admin-panel:
+    build: 
+      context: ./admin_panel
+      dockerfile: Dockerfile
+    container_name: asia-admin-panel-staging
+    ports:
+      - "8002:8000"
+    environment:
+      - ENVIRONMENT=staging
+      - DJANGO_DEBUG=False
+      - DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,*.apex-asia.com
+      - POSTGRES_DB=asia_crm_staging
+      - POSTGRES_USER=asia
+      - POSTGRES_PASSWORD=asia
+      - POSTGRES_HOST=db
+      - POSTGRES_PORT=5432
+      - REDIS_URL=redis://redis:6379/0
+      # 🔐 API интеграции - для production используйте Docker Secrets
+      - AMOCRM_CLIENT_ID=${AMOCRM_CLIENT_ID:-}
+      - AMOCRM_CLIENT_SECRET=${AMOCRM_CLIENT_SECRET:-}
+      - AMOCRM_REDIRECT_URI=${AMOCRM_REDIRECT_URI:-http://admin.staging.apex-asia.com/api/auth/amocrm/callback}
+      - WHATSAPP_API_KEY=${WHATSAPP_API_KEY:-}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      # 📧 Email настройки
+      - EMAIL_HOST=${EMAIL_SMTP_HOST:-}
+      - EMAIL_PORT=${EMAIL_SMTP_PORT:-587}
+      - EMAIL_HOST_USER=${EMAIL_USERNAME:-}
+      - EMAIL_HOST_PASSWORD=${EMAIL_PASSWORD:-}
+    depends_on:
+      - db
+      - redis
+    restart: unless-stopped
+    volumes:
+      - admin_panel_logs:/app/logs
+      - admin_panel_media:/app/media
+      - admin_panel_static:/app/staticfiles
+    command: ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "3", "apex_admin.wsgi:application"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/admin/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.admin-panel.rule=Host(`admin.staging.apex-asia.com`)"
+      - "traefik.http.services.admin-panel.loadbalancer.server.port=8000"
+      - "portainer.stack.name=apex-staging"
+
+
 
 volumes:
-  pgdata:
-  redis_data:
+  pgdata_staging:
+    driver: local
+  redis_data_staging:
+    driver: local
+  backend_logs:
+    driver: local
+  admin_panel_logs:
+    driver: local
+  admin_panel_media:
+    driver: local
+  admin_panel_static:
+    driver: local
+
+networks:
+  default:
+    name: apex-staging-network
+    driver: bridge
